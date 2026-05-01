@@ -169,7 +169,7 @@ def run_and_validate(test_file: str, maude_cmd: str = "maude") -> bool:
 
     output = proc.stdout + proc.stderr
 
-    # Persist raw output for CI artefacts.
+    # Persist raw output for CI artifacts.
     try:
         Path("/tmp/maude-test-output.txt").write_text(output)
     except OSError:

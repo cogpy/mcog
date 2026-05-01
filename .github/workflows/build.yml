@@ -8,6 +8,8 @@ jobs:
   verify-modules:
     name: Verify — ${{ matrix.module }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +46,7 @@ jobs:
   all-modules-ok:
     name: All modules OK
     runs-on: ubuntu-latest
+    permissions: {}
     needs: verify-modules
     if: always()
     steps:
