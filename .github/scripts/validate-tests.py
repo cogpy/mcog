@@ -52,7 +52,7 @@ def parse_test_commands(test_file: str) -> list:
             if k < n and lines[k].strip().startswith("*** expect:"):
                 expected = lines[k].strip()[len("*** expect:"):].strip()
                 if expected.endswith(" or similar"):
-                    expected = expected[: -len(" or similar")]
+                    expected = expected[:-len(" or similar")]
 
             commands.append(("red", expected))
             i = j + 1
