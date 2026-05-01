@@ -25,8 +25,11 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Run test suite and validate results
+      - name: Run Phase 1 test suite and validate results
         run: python3 .github/scripts/validate-tests.py test-opencog.maude
+
+      - name: Run Phase 2 test suite and validate results
+        run: python3 .github/scripts/validate-tests.py test-new-modules.maude
 
       - name: Upload raw Maude output on failure
         if: failure()
