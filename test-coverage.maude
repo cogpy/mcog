@@ -1,0 +1,1084 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Comprehensive Coverage Test Suite
+***
+***  Covers areas missing from test-opencog.maude and
+***  test-new-modules.maude:
+***    - CountTruthValue / IndefiniteTruthValue / nullTV
+***    - clamp01, countToConf/confToCount, tvRevision
+***    - Attention value: decSTI, incLTI, decLTI, getLTI, getVLTI, nullAV
+***    - AtomSpace: removeAtom, setTV, setAV, getAV, ocSize(emptyAS)
+***    - AtomSpace Query: more getOutgoing / source / target / ocArity
+***    - PLN: plnInduction, plnAbduction, plnSim2Inh; induction/sim2inh/
+***           inh2member rewrite searches
+***    - ECAN: all config accessors; spreading, rent, forgetting,
+***            Hebbian, stimulation, LTI rewrite searches
+***    - COMBO: comboMinus, comboDiv, comboGT/LT/EQ, comboAbs
+***    - COMBO eval: GT/LT/EQ, Abs, Minus, Div
+***    - MOSES knobs; demeSize(emptyDeme); mutation rewrite searches
+***    - URE: ruleName/Weight/Label, addRule, removeRule, totalWeight(emptyRB)
+***          FCState accessors; FC modus-ponens search; CogServer accessors;
+***          cog-cycle search
+***    - Pattern matcher: identity/ground substitutions
+***    - Graph match: MeetLink search, SatisfactionLink search
+***    - Pattern miner: all accessors; isInstance; countSupport;
+***                     seed generators; patSize; iSurprise
+***    - Spacetime: 6 remaining Allen relations; all allenInverse cases;
+***                 start/end/tpVal; getInterval; temporal searches;
+***                 spatial: getX/Y/Z, bboxMin/Max, isNear
+***    - Ghost/Psi: demandTarget, modName/Level, prName/Context/Action/
+***                 Demand/Weight, grName/Pattern, rulesForDemand edge cases;
+***                 psiCycle; demand-increase search; ghost-gambit search
+***    - Meta: isOrderedLink, isUnorderedLink, isEvaluatable, countNodes/
+***            countLinks(emptyAS), stepName/Weight, all strategies,
+***            rarName/rarAttempts, successRate(0,0), recordSuccess/Attempt,
+***            typeCount(emptyDTR), register-type search
+***    - Lambda/BetaReduce: member/evaluation/andLink isFreeIn;
+***                          subset/member betaSubst
+***    - ArithEval: numVal, evalArithAtom(number/minus/divide)
+***    - ExecutionEngine: sequential execution search
+*** ================================================================ )
+
+set show timing off .
+set show advisories off .
+
+*** =================================================================
+*** TRUTH VALUE: CountTruthValue and IndefiniteTruthValue
+*** =================================================================
+
+load truth-value.maude
+
+red in OC-TRUTH-VALUE : tvStrength(ctv(0.7, 0.8, 100.0)) .
+*** expect: 0.7
+
+red in OC-TRUTH-VALUE : tvConfidence(ctv(0.7, 0.8, 100.0)) .
+*** expect: 0.8
+
+red in OC-TRUTH-VALUE : tvCount(ctv(0.7, 0.8, 100.0)) .
+*** expect: 100.0
+
+red in OC-TRUTH-VALUE : tvStrength(itv(0.4, 0.8, 0.7)) .
+*** expect: 0.6
+
+red in OC-TRUTH-VALUE : tvConfidence(itv(0.4, 0.8, 0.7)) .
+*** expect: 0.7
+
+red in OC-TRUTH-VALUE : tvStrength(nullTV) .
+*** expect: 0.0
+
+red in OC-TRUTH-VALUE : tvConfidence(nullTV) .
+*** expect: 0.0
+
+red in OC-TRUTH-VALUE : tvCount(nullTV) .
+*** expect: 0.0
+
+red in OC-TRUTH-VALUE : tvNegate(nullTV) .
+*** expect: nullTV
+
+*** clamp01 edge cases
+red in OC-TRUTH-VALUE : clamp01(-0.5) .
+*** expect: 0.0
+
+red in OC-TRUTH-VALUE : clamp01(1.5) .
+*** expect: 1.0
+
+red in OC-TRUTH-VALUE : clamp01(0.5) .
+*** expect: 0.5
+
+*** count/confidence round-trip
+red in OC-TRUTH-VALUE : countToConf(confToCount(0.5)) .
+*** expect: 0.5
+
+*** tvRevision: symmetric inputs should average strength
+red in OC-TRUTH-VALUE : tvStrength(tvRevision(stv(0.8, 0.9), stv(0.2, 0.9))) .
+*** expect: 0.5
+
+*** tvAnd: confidence tracks the weaker source
+red in OC-TRUTH-VALUE : tvAnd(stv(1.0, 0.9), stv(1.0, 0.7)) .
+*** expect: stv(1.0, 0.7)
+
+*** tvOr: both false stays 0
+red in OC-TRUTH-VALUE : tvOr(stv(0.0, 0.9), stv(0.0, 0.7)) .
+*** expect: stv(0.0, 0.7)
+
+*** =================================================================
+*** ATTENTION VALUE: additional accessors and operations
+*** =================================================================
+
+load attention-value.maude
+
+red in OC-ATTENTION-VALUE : getLTI(av(500, 100, false)) .
+*** expect: 100
+
+red in OC-ATTENTION-VALUE : getVLTI(av(500, 100, true)) .
+*** expect: true
+
+red in OC-ATTENTION-VALUE : getVLTI(av(500, 100, false)) .
+*** expect: false
+
+red in OC-ATTENTION-VALUE : decSTI(av(500, 100, false), 50) .
+*** expect: av(450, 100, false)
+
+red in OC-ATTENTION-VALUE : incLTI(av(500, 100, false), 20) .
+*** expect: av(500, 120, false)
+
+red in OC-ATTENTION-VALUE : decLTI(av(500, 100, false), 30) .
+*** expect: av(500, 70, false)
+
+*** setVLTI: identity case (matching VLTI)
+red in OC-ATTENTION-VALUE : setVLTI(av(500, 100, true), true) .
+*** expect: av(500, 100, true)
+
+*** nullAV accessors
+red in OC-ATTENTION-VALUE : getSTI(nullAV) .
+*** expect: 0
+
+red in OC-ATTENTION-VALUE : getLTI(nullAV) .
+*** expect: 0
+
+red in OC-ATTENTION-VALUE : getVLTI(nullAV) .
+*** expect: false
+
+red in OC-ATTENTION-VALUE : totalImportance(nullAV) .
+*** expect: 0
+
+red in OC-ATTENTION-VALUE : inAttentionalFocus(nullAV, 0) .
+*** expect: false
+
+red in OC-ATTENTION-VALUE : getSTI(defaultAV) .
+*** expect: 0
+
+red in OC-ATTENTION-VALUE : getLTI(defaultAV) .
+*** expect: 0
+
+*** =================================================================
+*** ATOM SPACE: removeAtom, setTV, setAV, getAV, edge cases
+*** =================================================================
+
+load atom-space.maude
+
+red in OC-ATOM-SPACE : ocSize(emptyAS) .
+*** expect: 0
+
+red in OC-ATOM-SPACE :
+  ocSize(
+    removeAtom(
+      addAtom(
+        addAtom(emptyAS, concept("cat"), stv(1.0, 0.9)),
+        concept("dog"), stv(0.8, 0.7)),
+      concept("cat")
+    )
+  ) .
+*** expect: 1
+
+red in OC-ATOM-SPACE :
+  hasAtom(
+    removeAtom(
+      addAtom(emptyAS, concept("cat"), stv(1.0, 0.9)),
+      concept("cat")
+    ),
+    concept("cat")
+  ) .
+*** expect: false
+
+red in OC-ATOM-SPACE :
+  getAV(
+    [concept("cat"), stv(1.0, 0.9), av(100, 50, false)],
+    concept("cat")
+  ) .
+*** expect: av(100, 50, false)
+
+red in OC-ATOM-SPACE : getAV(emptyAS, concept("cat")) .
+*** expect: nullAV
+
+red in OC-ATOM-SPACE :
+  getTV(
+    setTV(
+      addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+      concept("cat"),
+      stv(0.5, 0.6)
+    ),
+    concept("cat")
+  ) .
+*** expect: stv(0.5, 0.6)
+
+red in OC-ATOM-SPACE :
+  getAV(
+    setAV(
+      [concept("cat"), stv(1.0, 0.9), av(100, 50, false)],
+      concept("cat"),
+      av(200, 100, true)
+    ),
+    concept("cat")
+  ) .
+*** expect: av(200, 100, true)
+
+red in OC-ATOM-SPACE : getTV(emptyAS, concept("missing")) .
+*** expect: nullTV
+
+*** addAtom without explicit TV uses defaultTV
+red in OC-ATOM-SPACE :
+  getTV(addAtom(emptyAS, concept("cat")), concept("cat")) .
+*** expect: stv(1.0, 0.0)
+
+*** getName for various node types
+red in OC-ATOM-SPACE : getName(predicate("is-a")) .
+*** expect: "is-a"
+
+red in OC-ATOM-SPACE : getName(anchor("main-anchor")) .
+*** expect: "main-anchor"
+
+red in OC-ATOM-SPACE : getName(variable("X")) .
+*** expect: "X"
+
+red in OC-ATOM-SPACE : getName(schema("add-schema")) .
+*** expect: "add-schema"
+
+red in OC-ATOM-SPACE : getName(number("42")) .
+*** expect: "42"
+
+*** =================================================================
+*** ATOM SPACE QUERY: additional link types
+*** =================================================================
+
+red in OC-ATOM-SPACE-QUERY :
+  source(member(concept("cat"), concept("animals"))) .
+*** expect: concept("cat")
+
+red in OC-ATOM-SPACE-QUERY :
+  target(member(concept("cat"), concept("animals"))) .
+*** expect: concept("animals")
+
+red in OC-ATOM-SPACE-QUERY :
+  ocArity(equivalence(concept("a"), concept("b"))) .
+*** expect: 2
+
+red in OC-ATOM-SPACE-QUERY :
+  ocArity(similarity(concept("a"), concept("b"))) .
+*** expect: 2
+
+red in OC-ATOM-SPACE-QUERY :
+  ocArity(member(concept("a"), concept("b"))) .
+*** expect: 2
+
+red in OC-ATOM-SPACE-QUERY :
+  source(subset(concept("cats"), concept("animals"))) .
+*** expect: concept("cats")
+
+red in OC-ATOM-SPACE-QUERY :
+  target(subset(concept("cats"), concept("animals"))) .
+*** expect: concept("animals")
+
+*** =================================================================
+*** PLN FORMULAS: plnInduction, plnAbduction, plnSim2Inh, edge cases
+*** =================================================================
+
+load pln.maude
+
+red in OC-PLN-FORMULAS : plnInduction(0.8, 0.9, 0.7, 0.8, 0.6, 0.5, 0.4) .
+
+red in OC-PLN-FORMULAS : plnAbduction(0.7, 0.8, 0.6, 0.7, 0.5, 0.4, 0.6) .
+
+red in OC-PLN-FORMULAS : plnSim2Inh(0.8, 0.9, 0.5, 0.5) .
+
+red in OC-PLN-FORMULAS : plnAndIntro(1.0, 0.9, 1.0, 0.8) .
+*** expect: stv(1.0, 0.8)
+
+red in OC-PLN-FORMULAS : plnAndIntro(0.0, 0.9, 0.8, 0.7) .
+*** expect: stv(0.0, 0.7)
+
+red in OC-PLN-FORMULAS : plnOrIntro(0.0, 0.9, 0.0, 0.7) .
+*** expect: stv(0.0, 0.7)
+
+red in OC-PLN-FORMULAS : plnNotIntro(0.0, 0.9) .
+*** expect: stv(1.0, 0.9)
+
+red in OC-PLN-FORMULAS : plnNotIntro(1.0, 0.9) .
+*** expect: stv(0.0, 0.9)
+
+*** =================================================================
+*** PLN RULES: induction, sim2inh, inh2member searches
+*** =================================================================
+
+*** Induction: poodle→dog, poodle→fluffy  ⊢  dog→fluffy
+search [1] in OC-PLN-RULES :
+  [concept("poodle"), stv(0.6, 0.8), defaultAV]
+  [concept("dog"), stv(0.5, 0.7), defaultAV]
+  [concept("fluffy"), stv(0.4, 0.6), defaultAV]
+  [inheritance(concept("poodle"), concept("dog")), stv(0.9, 0.8), defaultAV]
+  [inheritance(concept("poodle"), concept("fluffy")), stv(0.7, 0.6), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("dog"), concept("fluffy"))) == true .
+
+*** Similarity-to-Inheritance
+search [1] in OC-PLN-RULES :
+  [concept("human"), stv(0.5, 0.8), defaultAV]
+  [concept("person"), stv(0.5, 0.8), defaultAV]
+  [similarity(concept("human"), concept("person")), stv(0.95, 0.9), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("human"), concept("person"))) == true .
+
+*** Inheritance-to-Member
+search [1] in OC-PLN-RULES :
+  [inheritance(concept("fido"), concept("dog")), stv(0.9, 0.8), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, member(concept("fido"), concept("dog"))) == true .
+
+*** =================================================================
+*** ECAN: config accessors and rewrite rule searches
+*** =================================================================
+
+load ecan.maude
+
+red in OC-ECAN-CONFIG : afBoundary(defaultECANParams) .
+*** expect: 100
+
+red in OC-ECAN-CONFIG : maxSTI(defaultECANParams) .
+*** expect: 32767
+
+red in OC-ECAN-CONFIG : spreadFraction(defaultECANParams) .
+*** expect: 0.1
+
+red in OC-ECAN-CONFIG : hebbianDecay(defaultECANParams) .
+*** expect: 0.05
+
+red in OC-ECAN-CONFIG : rentRate(defaultECANParams) .
+*** expect: 0.01
+
+red in OC-ECAN-CONFIG : forgettingThreshold(defaultECANParams) .
+*** expect: -400
+
+*** Stimulation: STI increases by 50
+search [1] in OC-ECAN :
+  [concept("cat"), stv(0.8, 0.9), av(100, 50, false)]
+=>+ AS:AtomSpace
+such that
+  getAV(AS, concept("cat")) == av(150, 50, false) .
+
+*** Rent collection: STI decreases by 1 when STI > 0 and not VLTI
+search [1] in OC-ECAN :
+  [concept("cat"), stv(0.8, 0.9), av(10, 50, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS, concept("cat"))) == 9 .
+
+*** Forgetting: atom removed when STI < -400 and not VLTI
+search [1] in OC-ECAN :
+  [concept("old-idea"), stv(0.5, 0.5), av(-500, 0, false)]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS, concept("old-idea")) == false .
+
+*** Asymmetric Hebbian spreading: source loses STI, target gains
+search [1] in OC-ECAN :
+  [asymHebbian(concept("cat"), concept("animal")), stv(0.8, 0.9), defaultAV]
+  [concept("cat"), stv(1.0, 0.9), av(200, 50, false)]
+  [concept("animal"), stv(1.0, 0.9), av(10, 50, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS, concept("animal"))) > 10 .
+
+*** LTI update: atom in attentional focus (STI > 100) gains LTI
+search [1] in OC-ECAN :
+  [concept("important"), stv(0.8, 0.9), av(200, 0, false)]
+=>+ AS:AtomSpace
+such that
+  getLTI(getAV(AS, concept("important"))) == 1 .
+
+*** =================================================================
+*** COMBO: additional simplification and evaluation tests
+*** =================================================================
+
+load moses.maude
+
+red in OC-COMBO : comboMinus(arithVar(0), comboNum(0.0)) .
+*** expect: arithVar(0)
+
+red in OC-COMBO : comboDiv(comboNum(6.0), comboNum(3.0)) .
+*** expect: comboNum(2.0)
+
+red in OC-COMBO : comboIf(comboFalse, comboNum(1.0), comboNum(0.0)) .
+*** expect: comboNum(0.0)
+
+red in OC-COMBO : comboAnd(boolVar(0), boolVar(0)) .
+*** expect: boolVar(0)
+
+red in OC-COMBO : comboOr(boolVar(0), boolVar(0)) .
+*** expect: boolVar(0)
+
+red in OC-COMBO-EVAL :
+  evalBool(comboGT(arithVar(0), arithVar(1)),
+           (0 ==> 5.0) ; (1 ==> 3.0)) .
+*** expect: true
+
+red in OC-COMBO-EVAL :
+  evalBool(comboLT(arithVar(0), arithVar(1)),
+           (0 ==> 2.0) ; (1 ==> 3.0)) .
+*** expect: true
+
+red in OC-COMBO-EVAL :
+  evalBool(comboEQ(arithVar(0), arithVar(1)),
+           (0 ==> 3.0) ; (1 ==> 3.0)) .
+*** expect: true
+
+red in OC-COMBO-EVAL :
+  evalBool(comboEQ(arithVar(0), arithVar(1)),
+           (0 ==> 3.0) ; (1 ==> 4.0)) .
+*** expect: false
+
+red in OC-COMBO-EVAL :
+  evalArith(comboAbs(arithVar(0)), (0 ==> -5.0)) .
+*** expect: 5.0
+
+red in OC-COMBO-EVAL :
+  evalArith(comboMinus(arithVar(0), arithVar(1)),
+            (0 ==> 7.0) ; (1 ==> 3.0)) .
+*** expect: 4.0
+
+red in OC-COMBO-EVAL :
+  evalArith(comboDiv(arithVar(0), arithVar(1)),
+            (0 ==> 10.0) ; (1 ==> 2.0)) .
+*** expect: 5.0
+
+*** =================================================================
+*** MOSES KNOBS AND POPULATION
+*** =================================================================
+
+red in OC-MOSES-KNOBS : knobCount(noKnobs) .
+*** expect: 0
+
+red in OC-MOSES-KNOBS :
+  knobCount(
+    boolKnob(0, 1) :: arithKnob(1, 0.5) :: discKnob(2, 0, 5) :: noKnobs
+  ) .
+*** expect: 3
+
+red in OC-MOSES-POPULATION : demeSize(emptyDeme) .
+*** expect: 0
+
+red in OC-MOSES-POPULATION : bestScore(emptyDeme) .
+*** expect: -1.0e10
+
+*** Mutation: And → Or
+search [1] in OC-MOSES-EVOLVE :
+  scored(comboAnd(boolVar(0), boolVar(1)), 0.8)
+=>+ SP:ScoredProgram
+such that SP:ScoredProgram == scored(comboOr(boolVar(0), boolVar(1)), 0.0) .
+
+*** Mutation: remove double negation
+search [1] in OC-MOSES-EVOLVE :
+  scored(comboNot(boolVar(0)), 0.5)
+=>+ SP:ScoredProgram
+such that SP:ScoredProgram == scored(boolVar(0), 0.0) .
+
+*** =================================================================
+*** URE RULE BASE: accessors and rule modification
+*** =================================================================
+
+load ure.maude
+
+red in OC-URE-RULE-BASE : ruleName(urRule("deduction", 1.0, "pln-deduction")) .
+*** expect: "deduction"
+
+red in OC-URE-RULE-BASE : ruleWeight(urRule("deduction", 1.0, "pln-deduction")) .
+*** expect: 1.0
+
+red in OC-URE-RULE-BASE : ruleLabel(urRule("deduction", 1.0, "pln-deduction")) .
+*** expect: "pln-deduction"
+
+red in OC-URE-RULE-BASE : totalWeight(emptyRB) .
+*** expect: 0.0
+
+red in OC-URE-RULE-BASE :
+  ruleCount(
+    addRule(
+      urRule("deduction", 1.0, "pln-deduction"),
+      urRule("modus-ponens", 0.8, "pln-modus-ponens")
+    )
+  ) .
+*** expect: 2
+
+red in OC-URE-RULE-BASE :
+  ruleCount(
+    removeRule(
+      urRule("deduction", 1.0, "pln-deduction") ;;
+      urRule("modus-ponens", 0.8, "pln-modus-ponens"),
+      "deduction"
+    )
+  ) .
+*** expect: 1
+
+*** =================================================================
+*** COGSERVER AND FC STATE ACCESSORS
+*** =================================================================
+
+red in OPENCOG : csAS(newCogServer(emptyAS)) .
+*** expect: emptyAS
+
+red in OPENCOG : csCycle(newCogServer(emptyAS)) .
+*** expect: 0
+
+red in OPENCOG :
+  fcMaxIter(fcState(emptyAS, defaultPLNRuleBase, 10, 0, concept("cat"))) .
+*** expect: 10
+
+red in OPENCOG :
+  fcCurIter(fcState(emptyAS, defaultPLNRuleBase, 10, 0, concept("cat"))) .
+*** expect: 0
+
+red in OPENCOG :
+  fcSource(fcState(emptyAS, defaultPLNRuleBase, 10, 0, concept("cat"))) .
+*** expect: concept("cat")
+
+*** CogServer cycle rotation
+search [1] in OC-COG-SERVER :
+  cogServer(emptyAS, plnAgent -> ecanAgent -> mosesAgent, emptyRB, 0)
+=>+ CS:CogServerState
+such that csCycle(CS:CogServerState) == 1 .
+
+*** Forward chaining: modus ponens derives concept("flood")
+search [1] in OC-URE-FORWARD-CHAINER :
+  fcState(
+    [concept("rain"), stv(0.9, 0.85), defaultAV]
+    [implication(concept("rain"), concept("flood")), stv(0.8, 0.9), defaultAV],
+    urRule("modus-ponens", 0.8, "pln-modus-ponens"),
+    5, 0, concept("rain"))
+=>+ FC:FCState
+such that hasAtom(fcAS(FC:FCState), concept("flood")) == true .
+
+*** =================================================================
+*** PATTERN MATCHER: additional substitution cases
+*** =================================================================
+
+*** Substituting into a member link
+red in OC-PATTERN-MATCHER :
+  applySubst(
+    member(variable("X"), concept("animals")),
+    variable("X") |-> concept("cat")
+  ) .
+*** expect: member(concept("cat"), concept("animals"))
+
+*** Substituting into similarity link
+red in OC-PATTERN-MATCHER :
+  applySubst(
+    similarity(variable("A"), variable("B")),
+    (variable("A") |-> concept("cat")) +
+    (variable("B") |-> concept("tiger"))
+  ) .
+*** expect: similarity(concept("cat"), concept("tiger"))
+
+*** Variable not in substitution is left unchanged
+red in OC-PATTERN-MATCHER :
+  applySubst(variable("Z"), variable("X") |-> concept("cat")) .
+*** expect: variable("Z")
+
+*** Ground atom is unchanged by any substitution
+red in OC-PATTERN-MATCHER :
+  applySubst(concept("cat"), variable("X") |-> concept("dog")) .
+*** expect: concept("cat")
+
+*** =================================================================
+*** GRAPH PATTERN MATCHING: MeetLink and SatisfactionLink searches
+*** =================================================================
+
+load pattern-matcher.maude
+
+*** MeetLink: produces setLink containing the matched ground atom
+search [1] in OC-GRAPH-MATCH :
+  [meet((variable("X"), nil),
+        inheritance(variable("X"), concept("animal"))),
+   stv(1.0, 0.9), defaultAV]
+  [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS, setLink(inheritance(concept("cat"), concept("animal")))) == true .
+
+*** SatisfactionLink: truth value updated to stv(1.0, 1.0) when match exists
+search [1] in OC-GRAPH-MATCH :
+  [satisfaction((variable("X"), nil),
+                inheritance(variable("X"), concept("animal"))),
+   stv(0.5, 0.5), defaultAV]
+  [inheritance(concept("dog"), concept("animal")), stv(0.8, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  tvStrength(getTV(AS,
+    satisfaction((variable("X"), nil),
+                 inheritance(variable("X"), concept("animal"))))) == 1.0 .
+
+*** =================================================================
+*** PATTERN MINER: accessors, support counting, seed generators
+*** =================================================================
+
+load pattern-miner.maude
+
+*** MinedPattern accessors
+red in OC-PATTERN-REP :
+  mpSupport(minedPat(inheritance(variable("$X"), variable("$Y")), 5, 0.2)) .
+*** expect: 5
+
+red in OC-PATTERN-REP :
+  mpSurprise(minedPat(inheritance(variable("$X"), variable("$Y")), 5, 0.2)) .
+*** expect: 0.2
+
+*** MinerConfig accessors
+red in OC-PATTERN-REP : minSupport(defaultMinerConfig) .
+*** expect: 5
+
+red in OC-PATTERN-REP : maxPatSize(defaultMinerConfig) .
+*** expect: 4
+
+red in OC-PATTERN-REP : maxPatterns(defaultMinerConfig) .
+*** expect: 100
+
+red in OC-PATTERN-REP : minSurprise(defaultMinerConfig) .
+*** expect: 0.1
+
+*** isInstance: should succeed when pattern unifies with ground atom
+red in OC-SUPPORT-COUNT :
+  isInstance(inheritance(variable("$X"), concept("animal")),
+             inheritance(concept("cat"), concept("animal"))) .
+*** expect: true
+
+*** isInstance: should fail when ground atoms differ
+red in OC-SUPPORT-COUNT :
+  isInstance(inheritance(variable("$X"), concept("animal")),
+             inheritance(concept("cat"), concept("dog"))) .
+*** expect: false
+
+*** countSupport: two inheritance-to-animal links should score 2
+red in OC-SUPPORT-COUNT :
+  countSupport(
+    inheritance(variable("$X"), concept("animal")),
+    [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("dog"), concept("animal")), stv(0.8, 0.7), defaultAV]
+    [inheritance(concept("fish"), concept("aquatic")), stv(0.7, 0.6), defaultAV]
+  ) .
+*** expect: 2
+
+*** countSupport: no match returns 0
+red in OC-SUPPORT-COUNT :
+  countSupport(
+    inheritance(variable("$X"), concept("reptile")),
+    [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+  ) .
+*** expect: 0
+
+*** Seed pattern generators
+red in OC-PATTERN-GEN : genInhSeed .
+*** expect: inheritance(variable("$X"), variable("$Y"))
+
+red in OC-PATTERN-GEN : genImplSeed .
+*** expect: implication(variable("$X"), variable("$Y"))
+
+red in OC-PATTERN-GEN : genMemberSeed .
+*** expect: member(variable("$X"), variable("$Y"))
+
+red in OC-PATTERN-GEN : genInhSeedFrom(concept("animal")) .
+*** expect: inheritance(concept("animal"), variable("$Y"))
+
+red in OC-PATTERN-GEN : genInhSeedTo(concept("animal")) .
+*** expect: inheritance(variable("$X"), concept("animal"))
+
+*** patSize
+red in OC-PATTERN-GEN : patSize(inheritance(variable("$X"), variable("$Y"))) .
+*** expect: 1
+
+red in OC-PATTERN-GEN :
+  patSize(andLink((inheritance(variable("$X"), variable("$Y")),
+                   member(variable("$X"), variable("$Z")),
+                   nil))) .
+*** expect: 2
+
+*** I-Surprisingness
+red in OC-SURPRISINGNESS : iSurprise(3, 1, 10) .
+*** expect: 0.3
+
+red in OC-SURPRISINGNESS : iSurprise(5, 2, 0) .
+*** expect: 0.0
+
+*** =================================================================
+*** SPACETIME: remaining Allen relations, inverses, accessors, spatial
+*** =================================================================
+
+load spacetime.maude
+
+*** Remaining Allen relations
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(5), tp(9)), interval(tp(1), tp(5))) .
+*** expect: metBy
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(4), tp(9)), interval(tp(1), tp(6))) .
+*** expect: overlappedBy
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(5)), interval(tp(1), tp(9))) .
+*** expect: starts
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(9)), interval(tp(1), tp(5))) .
+*** expect: startedBy
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(3), tp(9)), interval(tp(1), tp(9))) .
+*** expect: finishes
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(9)), interval(tp(3), tp(9))) .
+*** expect: finishedBy
+
+*** allenInverse: complete coverage of all 13 relations
+red in OC-ALLEN-INTERVALS : allenInverse(before) .
+*** expect: after
+
+red in OC-ALLEN-INTERVALS : allenInverse(after) .
+*** expect: before
+
+red in OC-ALLEN-INTERVALS : allenInverse(meets) .
+*** expect: metBy
+
+red in OC-ALLEN-INTERVALS : allenInverse(metBy) .
+*** expect: meets
+
+red in OC-ALLEN-INTERVALS : allenInverse(overlaps) .
+*** expect: overlappedBy
+
+red in OC-ALLEN-INTERVALS : allenInverse(overlappedBy) .
+*** expect: overlaps
+
+red in OC-ALLEN-INTERVALS : allenInverse(starts) .
+*** expect: startedBy
+
+red in OC-ALLEN-INTERVALS : allenInverse(startedBy) .
+*** expect: starts
+
+red in OC-ALLEN-INTERVALS : allenInverse(during) .
+*** expect: contains
+
+red in OC-ALLEN-INTERVALS : allenInverse(contains) .
+*** expect: during
+
+red in OC-ALLEN-INTERVALS : allenInverse(finishes) .
+*** expect: finishedBy
+
+red in OC-ALLEN-INTERVALS : allenInverse(finishedBy) .
+*** expect: finishes
+
+red in OC-ALLEN-INTERVALS : allenInverse(equals) .
+*** expect: equals
+
+*** Interval accessors
+red in OC-ALLEN-INTERVALS : start(interval(tp(3), tp(10))) .
+*** expect: tp(3)
+
+red in OC-ALLEN-INTERVALS : end(interval(tp(3), tp(10))) .
+*** expect: tp(10)
+
+red in OC-ALLEN-INTERVALS : tpVal(tp(42)) .
+*** expect: 42
+
+*** TimeServer: getInterval round-trip
+red in OC-TIME-SERVER :
+  getInterval(
+    addTemporal(timeServer(emptyTM, 100), concept("event1"), interval(tp(10), tp(20))),
+    concept("event1")
+  ) .
+*** expect: interval(tp(10), tp(20))
+
+red in OC-TIME-SERVER : tsNow(timeServer(emptyTM, 42)) .
+*** expect: 42
+
+*** Spatial: 3D point and bounding box accessors
+red in OC-SPATIAL : getX(point3d(1.0, 2.0, 3.0)) .
+*** expect: 1.0
+
+red in OC-SPATIAL : getY(point3d(1.0, 2.0, 3.0)) .
+*** expect: 2.0
+
+red in OC-SPATIAL : getZ(point3d(1.0, 2.0, 3.0)) .
+*** expect: 3.0
+
+red in OC-SPATIAL :
+  bboxMin(bbox(point3d(0.0, 0.0, 0.0), point3d(1.0, 1.0, 1.0))) .
+*** expect: point3d(0.0, 0.0, 0.0)
+
+red in OC-SPATIAL :
+  bboxMax(bbox(point3d(0.0, 0.0, 0.0), point3d(1.0, 1.0, 1.0))) .
+*** expect: point3d(1.0, 1.0, 1.0)
+
+red in OC-SPATIAL :
+  isNear(point3d(0.0, 0.0, 0.0), point3d(0.5, 0.0, 0.0), 1.0) .
+*** expect: true
+
+red in OC-SPATIAL :
+  isNear(point3d(0.0, 0.0, 0.0), point3d(5.0, 5.0, 5.0), 1.0) .
+*** expect: false
+
+*** Temporal overlap: creates attraction link
+search [1] in OC-TEMPORAL-REASONING :
+  [atTimeLink(concept("A"), timeIntervalNode(1, 6)), stv(0.9, 0.8), defaultAV]
+  [atTimeLink(concept("B"), timeIntervalNode(4, 9)), stv(0.9, 0.8), defaultAV]
+  [implication(concept("A"), concept("B")), stv(0.8, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, attraction(concept("A"), concept("B"))) == true .
+
+*** Temporal simultaneous: creates similarity link
+search [1] in OC-TEMPORAL-REASONING :
+  [atTimeLink(concept("X"), timeIntervalNode(5, 10)), stv(0.8, 0.7), defaultAV]
+  [atTimeLink(concept("Y"), timeIntervalNode(5, 10)), stv(0.8, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, similarity(concept("X"), concept("Y"))) == true .
+
+*** =================================================================
+*** GHOST/PSI: additional accessors and action searches
+*** =================================================================
+
+load ghost-psi.maude
+
+red in OC-OPENPSI-DEMANDS : demandTarget(psiDemand("energy", 0.8, 0.9)) .
+*** expect: 0.9
+
+red in OC-OPENPSI-DEMANDS : modName(psiMod("activation", 0.5)) .
+*** expect: "activation"
+
+red in OC-OPENPSI-DEMANDS : modLevel(psiMod("activation", 0.5)) .
+*** expect: 0.5
+
+*** rulesForDemand: no matching demand returns empty
+red in OC-OPENPSI-RULES :
+  psiRuleCount(rulesForDemand(
+    psiRule("r1", concept("hungry"), concept("eat"), "energy", 0.9) ;;
+    psiRule("r2", concept("danger"), concept("flee"), "safety", 0.8),
+    "affiliation"
+  )) .
+*** expect: 0
+
+*** rulesForDemand: multiple matching rules are all returned
+red in OC-OPENPSI-RULES :
+  psiRuleCount(rulesForDemand(
+    psiRule("r1", concept("hungry"), concept("eat"), "energy", 0.9) ;;
+    psiRule("r2", concept("thirsty"), concept("drink"), "energy", 0.7),
+    "energy"
+  )) .
+*** expect: 2
+
+*** PsiRule accessors
+red in OC-OPENPSI-RULES :
+  prName(psiRule("r1", concept("ctx"), concept("act"), "energy", 0.9)) .
+*** expect: "r1"
+
+red in OC-OPENPSI-RULES :
+  prContext(psiRule("r1", concept("ctx"), concept("act"), "energy", 0.9)) .
+*** expect: concept("ctx")
+
+red in OC-OPENPSI-RULES :
+  prAction(psiRule("r1", concept("ctx"), concept("act"), "energy", 0.9)) .
+*** expect: concept("act")
+
+red in OC-OPENPSI-RULES :
+  prDemand(psiRule("r1", concept("ctx"), concept("act"), "energy", 0.9)) .
+*** expect: "energy"
+
+red in OC-OPENPSI-RULES :
+  prWeight(psiRule("r1", concept("ctx"), concept("act"), "energy", 0.9)) .
+*** expect: 0.9
+
+*** Ghost rule accessors
+red in OC-GHOST :
+  grName(ghostRule("hello", responder,
+         (concept("hi"), nil), concept("resp"), "greetings")) .
+*** expect: "hello"
+
+*** Psi demand increase: urgency rises toward target
+search [1] in OC-OPENPSI-ENGINE :
+  psiState(
+    emptyAS,
+    psiDemand("energy", 0.3, 0.9) ;; emptyDemands,
+    emptyMods,
+    emptyPsiRules,
+    emptyGhostRules,
+    "topic1",
+    0)
+=>+ PS:PsiState
+such that psiCycle(PS:PsiState) == 1 .
+
+*** Ghost gambit: proactive utterance added to AtomSpace
+search [1] in OC-OPENPSI-ENGINE :
+  psiState(
+    emptyAS,
+    emptyDemands,
+    emptyMods,
+    emptyPsiRules,
+    ghostRule("g", gambit, nil, concept("hello-world"), "greetings") ;;
+    emptyGhostRules,
+    "greetings",
+    0)
+=>+ PS:PsiState
+such that
+  hasAtom(psiAS(PS:PsiState),
+          evaluation(predicate("say"), (concept("hello-world"), nil))) == true .
+
+*** =================================================================
+*** META-LEVEL: type predicates, strategies, monitoring, self-modification
+*** =================================================================
+
+load meta-opencog.maude
+
+red in OC-TYPE-INTROSPECT : isOrderedLink(inheritance(concept("a"), concept("b"))) .
+*** expect: true
+
+red in OC-TYPE-INTROSPECT : isOrderedLink(equivalence(concept("a"), concept("b"))) .
+*** expect: false
+
+red in OC-TYPE-INTROSPECT : isUnorderedLink(similarity(concept("a"), concept("b"))) .
+*** expect: true
+
+red in OC-TYPE-INTROSPECT : isUnorderedLink(inheritance(concept("a"), concept("b"))) .
+*** expect: false
+
+red in OC-TYPE-INTROSPECT : isEvaluatable(evaluation(predicate("p"), nil)) .
+*** expect: true
+
+red in OC-TYPE-INTROSPECT : isEvaluatable(inheritance(concept("a"), concept("b"))) .
+*** expect: false
+
+red in OC-TYPE-INTROSPECT : countNodes(emptyAS) .
+*** expect: 0
+
+red in OC-TYPE-INTROSPECT : countLinks(emptyAS) .
+*** expect: 0
+
+*** Cognitive synergy: all predefined strategies
+red in OC-COGNITIVE-SYNERGY : stratLength(inductiveStrategy) .
+*** expect: 3
+
+red in OC-COGNITIVE-SYNERGY : stratLength(abductiveStrategy) .
+*** expect: 3
+
+red in OC-COGNITIVE-SYNERGY : stratLength(analogicalStrategy) .
+*** expect: 3
+
+red in OC-COGNITIVE-SYNERGY : stratLength(emptyStrat) .
+*** expect: 0
+
+red in OC-COGNITIVE-SYNERGY : stepName(step("deduction", 1.0)) .
+*** expect: "deduction"
+
+red in OC-COGNITIVE-SYNERGY : stepWeight(step("deduction", 1.0)) .
+*** expect: 1.0
+
+*** Inference monitor accessors
+red in OC-INFERENCE-MONITOR : rarName(ruleApp("deduction", 8, 10)) .
+*** expect: "deduction"
+
+red in OC-INFERENCE-MONITOR : rarAttempts(ruleApp("deduction", 8, 10)) .
+*** expect: 10
+
+red in OC-INFERENCE-MONITOR : successRate(ruleApp("deduction", 0, 0)) .
+*** expect: 0.0
+
+red in OC-INFERENCE-MONITOR :
+  rarSuccesses(
+    recordSuccess(ruleApp("deduction", 5, 8) ;; emptyARS, "deduction")
+  ) .
+*** expect: 6
+
+red in OC-INFERENCE-MONITOR :
+  rarAttempts(
+    recordAttempt(ruleApp("deduction", 5, 8) ;; emptyARS, "deduction")
+  ) .
+*** expect: 9
+
+*** Self-modification: empty registry
+red in OC-SELF-MODIFY : typeCount(emptyDTR) .
+*** expect: 0
+
+red in OC-SELF-MODIFY : hasType(emptyDTR, "NonExistentType") .
+*** expect: false
+
+*** register-type rewrite rule
+search [1] in OC-SELF-MODIFY :
+  selfModState(
+    [defineLink(typeNode("MyNode"), typeNode("ConceptNode")), stv(1.0, 0.9), defaultAV],
+    emptyDTR,
+    emptyARS,
+    0)
+=>+ SMS:SelfModState
+such that hasType(smTypes(SMS:SelfModState), "MyNode") == true .
+
+*** =================================================================
+*** LAMBDA / BETA-REDUCE: additional free-variable and substitution cases
+*** =================================================================
+
+load execution-engine.maude
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), member(variable("X"), concept("animals"))) .
+*** expect: true
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), member(concept("cat"), concept("animals"))) .
+*** expect: false
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), evaluation(variable("X"), nil)) .
+*** expect: true
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), andLink((variable("X"), concept("a"), nil))) .
+*** expect: true
+
+red in OC-BETA-REDUCE :
+  betaSubst(member(variable("X"), concept("animals")),
+            variable("X"), concept("cat")) .
+*** expect: member(concept("cat"), concept("animals"))
+
+red in OC-BETA-REDUCE :
+  betaSubst(subset(variable("X"), concept("B")),
+            variable("X"), concept("A")) .
+*** expect: subset(concept("A"), concept("B"))
+
+*** =================================================================
+*** ARITHMETIC EVALUATION: numVal, evalArithAtom
+*** =================================================================
+
+red in OC-ARITH-EVAL : numVal(number("5")) .
+*** expect: 5.0
+
+red in OC-ARITH-EVAL : numVal(number("0")) .
+*** expect: 0.0
+
+red in OC-ARITH-EVAL : numVal(number("-1")) .
+*** expect: -1.0
+
+*** evalArithAtom on a plain NumberNode is identity
+red in OC-ARITH-EVAL : evalArithAtom(number("7")) .
+*** expect: number("7")
+
+*** evalArithAtom: 10 - 3 = 7
+red in OC-ARITH-EVAL : evalArithAtom(minusLink(number("10"), number("3"))) .
+*** expect: number("7")
+
+*** evalArithAtom: 10 / 2 = 5
+red in OC-ARITH-EVAL : evalArithAtom(divideLink(number("10"), number("2"))) .
+*** expect: number("5")
+
+*** =================================================================
+*** EXECUTION ENGINE: sequential execution search
+*** =================================================================
+
+*** SequentialAnd splits into its first step (reachable from search)
+search [1] in OC-EXECUTION-ENGINE :
+  [seqAnd((concept("step1"), concept("step2"), nil)), stv(1.0, 0.9), defaultAV]
+=>+ AS:AtomSpace
+such that hasAtom(AS, concept("step1")) == true .
+
+*** =================================================================
+*** DONE
+*** =================================================================
+
+q
