@@ -1,0 +1,257 @@
+***( ================================================================
+***  OpenCog in Pure Maude — PLN Module
+***  
+***  Probabilistic Logic Networks: the core reasoning engine.
+***  
+***  Based on: Goertzel et al., "Probabilistic Logic Networks"
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** PLN TRUTH VALUE FORMULAS
+*** =================================================================
+
+fmod OC-PLN-FORMULAS is
+  protecting OC-TRUTH-VALUE .
+  protecting FLOAT .
+
+  *** PLN Deduction Formula
+  op plnDeduction : Float Float Float Float Float Float Float -> OcTruthValue .
+
+  *** PLN Modus Ponens Formula
+  op plnModusPonens : Float Float Float Float -> OcTruthValue .
+
+  *** PLN Induction Formula
+  op plnInduction : Float Float Float Float Float Float Float -> OcTruthValue .
+
+  *** PLN Abduction Formula
+  op plnAbduction : Float Float Float Float Float Float Float -> OcTruthValue .
+
+  *** PLN And-Introduction Formula
+  op plnAndIntro : Float Float Float Float -> OcTruthValue .
+
+  *** PLN Or-Introduction Formula
+  op plnOrIntro : Float Float Float Float -> OcTruthValue .
+
+  *** PLN Not-Introduction Formula
+  op plnNotIntro : Float Float -> OcTruthValue .
+
+  *** PLN Similarity-to-Inheritance Formula
+  op plnSim2Inh : Float Float Float Float -> OcTruthValue .
+
+  *** Variables
+  vars SAB SBC SAC SA SB SC : Float .
+  vars CAB CBC CAC CA CB CC : Float .
+  vars S1 S2 C1 C2 Num Denom SNew CNew : Float .
+
+  *** PLN Deduction
+  ceq plnDeduction(SAB, CAB, SBC, CBC, SA, SB, SC) =
+      stv(clamp01(SNew), clamp01(CNew))
+    if Denom := if (1.0 - SB) < 1.0e-10 then 1.0e-10 else (1.0 - SB) fi
+    /\ SNew := SAB * SBC + (1.0 - SAB) * (SC - SB * SBC) / Denom
+    /\ CNew := min(CAB, CBC) * (1.0 - 1.0 / (1.0 + confToCount(min(CAB, CBC)))) .
+
+  *** PLN Modus Ponens
+  ceq plnModusPonens(SA, CA, SAB, CAB) =
+      stv(clamp01(SNew), clamp01(CNew))
+    if SNew := SA * SAB
+    /\ CNew := min(CA, CAB) .
+
+  *** PLN Induction
+  ceq plnInduction(SAB, CAB, SAC, CAC, SA, SB, SC) =
+      stv(clamp01(SNew), clamp01(CNew))
+    if SNew := if SA > 1.0e-10
+               then SAB * SAC / SA
+               else 0.0 fi
+    /\ CNew := min(CAB, CAC) * SA .
+
+  *** PLN Abduction
+  ceq plnAbduction(SAC, CAC, SBC, CBC, SA, SB, SC) =
+      stv(clamp01(SNew), clamp01(CNew))
+    if SNew := if SC > 1.0e-10
+               then SAC * SBC / SC
+               else 0.0 fi
+    /\ CNew := min(CAC, CBC) * SC .
+
+  *** PLN And-Introduction
+  eq plnAndIntro(S1, C1, S2, C2) =
+     stv(clamp01(S1 * S2), clamp01(min(C1, C2))) .
+
+  *** PLN Or-Introduction
+  eq plnOrIntro(S1, C1, S2, C2) =
+     stv(clamp01(S1 + S2 - S1 * S2), clamp01(min(C1, C2))) .
+
+  *** PLN Not-Introduction
+  eq plnNotIntro(S1, C1) = stv(clamp01(1.0 - S1), C1) .
+
+  *** PLN Similarity-to-Inheritance
+  eq plnSim2Inh(S1, C1, SA, SB) =
+     stv(clamp01(S1), clamp01(C1 * 0.8)) .
+
+endfm
+
+*** =================================================================
+*** PLN INFERENCE RULES
+*** =================================================================
+
+mod OC-PLN-RULES is
+  protecting OC-PLN-FORMULAS .
+  protecting OC-ATOM-SPACE-QUERY .
+
+  vars A B C : OcAtom .
+  vars SAB SBC SAC SA SB SC : Float .
+  vars CAB CBC CAC CA CB CC : Float .
+  var TV : OcTruthValue .
+  var AV AV1 AV2 AV3 : OcAttentionValue .
+  var AS : AtomSpace .
+
+  *** DEDUCTION: A → B, B → C  ⊢  A → C
+  crl [pln-deduction] :
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      [inheritance(B, C), stv(SBC, CBC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      AS
+    =>
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      [inheritance(B, C), stv(SBC, CBC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      [inheritance(A, C),
+       plnDeduction(SAB, CAB, SBC, CBC, SA, SB, SC),
+       defaultAV]
+      AS
+    if CAB > 0.0 /\ CBC > 0.0 /\ A =/= C .
+
+  *** MODUS PONENS: A, A → B  ⊢  B
+  crl [pln-modus-ponens] :
+      [A, stv(SA, CA), AV1]
+      [implication(A, B), stv(SAB, CAB), AV2]
+      AS
+    =>
+      [A, stv(SA, CA), AV1]
+      [implication(A, B), stv(SAB, CAB), AV2]
+      [B, plnModusPonens(SA, CA, SAB, CAB), defaultAV]
+      AS
+    if CA > 0.0 /\ CAB > 0.0 .
+
+  *** INDUCTION: A → B, A → C  ⊢  B → C
+  crl [pln-induction] :
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      [inheritance(A, C), stv(SAC, CAC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      AS
+    =>
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      [inheritance(A, C), stv(SAC, CAC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      [inheritance(B, C),
+       plnInduction(SAB, CAB, SAC, CAC, SA, SB, SC),
+       defaultAV]
+      AS
+    if CAB > 0.0 /\ CAC > 0.0 /\ B =/= C .
+
+  *** ABDUCTION: A → C, B → C  ⊢  A → B
+  crl [pln-abduction] :
+      [inheritance(A, C), stv(SAC, CAC), AV1]
+      [inheritance(B, C), stv(SBC, CBC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      AS
+    =>
+      [inheritance(A, C), stv(SAC, CAC), AV1]
+      [inheritance(B, C), stv(SBC, CBC), AV2]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [C, stv(SC, CC), AV]
+      [inheritance(A, B),
+       plnAbduction(SAC, CAC, SBC, CBC, SA, SB, SC),
+       defaultAV]
+      AS
+    if CAC > 0.0 /\ CBC > 0.0 /\ A =/= B .
+
+  *** REVISION: combine two TVs for the same atom
+  crl [pln-revision] :
+      [A, stv(SA, CA), AV1]
+      [A, stv(SB, CB), AV2]
+      AS
+    =>
+      [A, tvRevision(stv(SA, CA), stv(SB, CB)), AV1]
+      AS
+    if CA > 0.0 /\ CB > 0.0 .
+
+  *** AND-INTRODUCTION: A, B  ⊢  AndLink(A, B)
+  crl [pln-and-intro] :
+      [A, stv(SA, CA), AV1]
+      [B, stv(SB, CB), AV2]
+      AS
+    =>
+      [A, stv(SA, CA), AV1]
+      [B, stv(SB, CB), AV2]
+      [andLink(A, B),
+       plnAndIntro(SA, CA, SB, CB),
+       defaultAV]
+      AS
+    if CA > 0.0 /\ CB > 0.0 /\ A =/= B .
+
+  *** OR-INTRODUCTION: A, B  ⊢  OrLink(A, B)
+  crl [pln-or-intro] :
+      [A, stv(SA, CA), AV1]
+      [B, stv(SB, CB), AV2]
+      AS
+    =>
+      [A, stv(SA, CA), AV1]
+      [B, stv(SB, CB), AV2]
+      [orLink(A, B),
+       plnOrIntro(SA, CA, SB, CB),
+       defaultAV]
+      AS
+    if CA > 0.0 /\ CB > 0.0 /\ A =/= B .
+
+  *** NOT-INTRODUCTION: A  ⊢  NotLink(A)
+  crl [pln-not-intro] :
+      [A, stv(SA, CA), AV1]
+      AS
+    =>
+      [A, stv(SA, CA), AV1]
+      [notLink(A),
+       plnNotIntro(SA, CA),
+       defaultAV]
+      AS
+    if CA > 0.0 .
+
+  *** SIMILARITY-TO-INHERITANCE: Sim(A,B)  ⊢  Inh(A,B)
+  crl [pln-sim2inh] :
+      [similarity(A, B), stv(SAB, CAB), AV1]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      AS
+    =>
+      [similarity(A, B), stv(SAB, CAB), AV1]
+      [A, stv(SA, CA), AV]
+      [B, stv(SB, CB), AV]
+      [inheritance(A, B),
+       plnSim2Inh(SAB, CAB, SA, SB),
+       defaultAV]
+      AS
+    if CAB > 0.0 .
+
+  *** INHERITANCE-TO-MEMBER: Inh(A,B)  ⊢  Member(A,B)
+  crl [pln-inh2member] :
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      AS
+    =>
+      [inheritance(A, B), stv(SAB, CAB), AV1]
+      [member(A, B), stv(SAB, CAB), defaultAV]
+      AS
+    if CAB > 0.0 .
+
+endm

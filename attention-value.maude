@@ -1,0 +1,62 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-ATTENTION-VALUE Module
+***  
+***  Implements the attention value system used by ECAN.
+***  An AttentionValue is a triple (STI, LTI, VLTI).
+***  
+***  Based on: Goertzel et al., "Economic Attention Networks"
+*** ================================================================ )
+
+fmod OC-ATTENTION-VALUE is
+  protecting INT .
+  protecting BOOL .
+
+  *** Sort
+  sort OcAttentionValue .
+
+  *** Constructors
+  op av : Int Int Bool -> OcAttentionValue [ctor] .
+  op defaultAV : -> OcAttentionValue .
+  op nullAV : -> OcAttentionValue [ctor] .
+
+  *** Accessors
+  op getSTI : OcAttentionValue -> Int .
+  op getLTI : OcAttentionValue -> Int .
+  op getVLTI : OcAttentionValue -> Bool .
+
+  *** Operations
+  op incSTI : OcAttentionValue Int -> OcAttentionValue .
+  op decSTI : OcAttentionValue Int -> OcAttentionValue .
+  op incLTI : OcAttentionValue Int -> OcAttentionValue .
+  op decLTI : OcAttentionValue Int -> OcAttentionValue .
+  op setVLTI : OcAttentionValue Bool -> OcAttentionValue .
+  op inAttentionalFocus : OcAttentionValue Int -> Bool .
+  op totalImportance : OcAttentionValue -> Int .
+
+  *** Variables
+  vars S L Threshold Delta : Int .
+  var V : Bool .
+
+  *** Equations
+  eq defaultAV = av(0, 0, false) .
+  
+  eq getSTI(av(S, L, V)) = S .
+  eq getLTI(av(S, L, V)) = L .
+  eq getVLTI(av(S, L, V)) = V .
+  eq getSTI(nullAV) = 0 .
+  eq getLTI(nullAV) = 0 .
+  eq getVLTI(nullAV) = false .
+  
+  eq incSTI(av(S, L, V), Delta) = av(S + Delta, L, V) .
+  eq decSTI(av(S, L, V), Delta) = av(S - Delta, L, V) .
+  eq incLTI(av(S, L, V), Delta) = av(S, L + Delta, V) .
+  eq decLTI(av(S, L, V), Delta) = av(S, L - Delta, V) .
+  eq setVLTI(av(S, L, V), V) = av(S, L, V) .
+  
+  eq inAttentionalFocus(av(S, L, V), Threshold) = S > Threshold .
+  eq inAttentionalFocus(nullAV, Threshold) = false .
+  
+  eq totalImportance(av(S, L, V)) = S + L .
+  eq totalImportance(nullAV) = 0 .
+
+endfm

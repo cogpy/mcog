@@ -1,0 +1,299 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Integration Test Suite
+*** ================================================================ )
+
+set show timing off .
+set show advisories off .
+
+load ure.maude
+
+*** =================================================================
+*** TEST 1: Truth Value Arithmetic
+*** =================================================================
+
+red in OC-TRUTH-VALUE : tvStrength(stv(0.8, 0.9)) .
+*** expect: 0.8
+
+red in OC-TRUTH-VALUE : tvConfidence(stv(0.8, 0.9)) .
+*** expect: 0.9
+
+red in OC-TRUTH-VALUE : tvNegate(stv(0.8, 0.9)) .
+*** expect: stv(0.2, 0.9)
+
+red in OC-TRUTH-VALUE : tvAnd(stv(0.8, 0.9), stv(0.6, 0.7)) .
+*** expect: stv(0.48, 0.7)
+
+red in OC-TRUTH-VALUE : tvOr(stv(0.8, 0.9), stv(0.6, 0.7)) .
+*** expect: stv(0.92, 0.7)
+
+*** =================================================================
+*** TEST 2: Attention Value Operations
+*** =================================================================
+
+red in OC-ATTENTION-VALUE : getSTI(av(500, 100, false)) .
+*** expect: 500
+
+red in OC-ATTENTION-VALUE : incSTI(av(500, 100, false), 50) .
+*** expect: av(550, 100, false)
+
+red in OC-ATTENTION-VALUE : inAttentionalFocus(av(500, 100, false), 100) .
+*** expect: true
+
+red in OC-ATTENTION-VALUE : inAttentionalFocus(av(50, 100, false), 100) .
+*** expect: false
+
+red in OC-ATTENTION-VALUE : totalImportance(av(500, 100, false)) .
+*** expect: 600
+
+*** =================================================================
+*** TEST 3: AtomSpace Operations
+*** =================================================================
+
+red in OC-ATOM-SPACE :
+  ocSize(
+    addAtom(
+      addAtom(
+        addAtom(emptyAS, concept("cat"), stv(1.0, 0.9)),
+        concept("animal"), stv(1.0, 0.9)),
+      inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8))
+  ) .
+*** expect: 3
+
+red in OC-ATOM-SPACE :
+  hasAtom(
+    addAtom(emptyAS, concept("cat"), stv(1.0, 0.9)),
+    concept("cat")
+  ) .
+*** expect: true
+
+red in OC-ATOM-SPACE :
+  hasAtom(
+    addAtom(emptyAS, concept("cat"), stv(1.0, 0.9)),
+    concept("dog")
+  ) .
+*** expect: false
+
+red in OC-ATOM-SPACE :
+  getTV(
+    addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+    concept("cat")
+  ) .
+*** expect: stv(0.8, 0.9)
+
+red in OC-ATOM-SPACE : getName(concept("cat")) .
+*** expect: "cat"
+
+*** =================================================================
+*** TEST 4: AtomSpace Query Operations
+*** =================================================================
+
+red in OC-ATOM-SPACE-QUERY :
+  getOutgoing(inheritance(concept("cat"), concept("animal"))) .
+
+red in OC-ATOM-SPACE-QUERY :
+  source(inheritance(concept("cat"), concept("animal"))) .
+*** expect: concept("cat")
+
+red in OC-ATOM-SPACE-QUERY :
+  target(inheritance(concept("cat"), concept("animal"))) .
+*** expect: concept("animal")
+
+red in OC-ATOM-SPACE-QUERY :
+  ocArity(inheritance(concept("cat"), concept("animal"))) .
+*** expect: 2
+
+*** =================================================================
+*** TEST 5: PLN Formula Computation
+*** =================================================================
+
+red in OC-PLN-FORMULAS :
+  plnDeduction(0.9, 0.8, 0.85, 0.7, 0.5, 0.3, 0.4) .
+
+red in OC-PLN-FORMULAS :
+  plnModusPonens(0.8, 0.9, 0.7, 0.8) .
+*** expect: stv(0.56, 0.8)
+
+red in OC-PLN-FORMULAS :
+  plnAndIntro(0.8, 0.9, 0.6, 0.7) .
+*** expect: stv(0.48, 0.7)
+
+red in OC-PLN-FORMULAS :
+  plnOrIntro(0.8, 0.9, 0.6, 0.7) .
+*** expect: stv(0.92, 0.7)
+
+red in OC-PLN-FORMULAS :
+  plnNotIntro(0.8, 0.9) .
+*** expect: stv(0.2, 0.9)
+
+*** =================================================================
+*** TEST 6: PLN Deduction (Rewrite Rule Search)
+*** =================================================================
+
+search [1] in OC-PLN-RULES :
+  [concept("cat"), stv(1.0, 0.9), defaultAV]
+  [concept("animal"), stv(1.0, 0.9), defaultAV]
+  [concept("living-thing"), stv(1.0, 0.9), defaultAV]
+  [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+  [inheritance(concept("animal"), concept("living-thing")), stv(0.85, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("cat"), concept("living-thing"))) == true .
+
+*** =================================================================
+*** TEST 7: PLN Modus Ponens (Rewrite Rule Search)
+*** =================================================================
+
+search [1] in OC-PLN-RULES :
+  [concept("it-rains"), stv(0.9, 0.85), defaultAV]
+  [implication(concept("it-rains"), concept("wet-ground")), stv(0.95, 0.9), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, concept("wet-ground")) == true .
+
+*** =================================================================
+*** TEST 8: COMBO Program Simplification
+*** =================================================================
+
+red in OC-COMBO : comboNot(comboTrue) .
+*** expect: comboFalse
+
+red in OC-COMBO : comboNot(comboNot(boolVar(0))) .
+*** expect: boolVar(0)
+
+red in OC-COMBO : comboAnd(comboTrue, boolVar(1)) .
+*** expect: boolVar(1)
+
+red in OC-COMBO : comboOr(comboFalse, boolVar(2)) .
+*** expect: boolVar(2)
+
+red in OC-COMBO : comboIf(comboTrue, comboNum(1.0), comboNum(0.0)) .
+*** expect: comboNum(1.0)
+
+red in OC-COMBO : comboPlus(comboNum(0.0), arithVar(0)) .
+*** expect: arithVar(0)
+
+red in OC-COMBO : comboTimes(comboNum(1.0), arithVar(1)) .
+*** expect: arithVar(1)
+
+red in OC-COMBO : comboPlus(comboNum(3.0), comboNum(4.0)) .
+*** expect: comboNum(7.0)
+
+red in OC-COMBO : comboTimes(comboNum(2.0), comboNum(3.0)) .
+*** expect: comboNum(6.0)
+
+*** =================================================================
+*** TEST 9: COMBO Evaluation
+*** =================================================================
+
+red in OC-COMBO-EVAL :
+  evalBool(comboAnd(boolVar(0), boolVar(1)),
+           (0 ==> 1.0) ; (1 ==> 1.0)) .
+*** expect: true
+
+red in OC-COMBO-EVAL :
+  evalBool(comboOr(boolVar(0), boolVar(1)),
+           (0 ==> 0.0) ; (1 ==> 1.0)) .
+*** expect: true
+
+red in OC-COMBO-EVAL :
+  evalArith(comboPlus(arithVar(0), arithVar(1)),
+            (0 ==> 3.0) ; (1 ==> 4.0)) .
+*** expect: 7.0
+
+red in OC-COMBO-EVAL :
+  evalArith(comboTimes(arithVar(0), comboNum(2.0)),
+            (0 ==> 5.0)) .
+*** expect: 10.0
+
+*** =================================================================
+*** TEST 10: MOSES Population Management
+*** =================================================================
+
+red in OC-MOSES-POPULATION :
+  demeSize(
+    scored(comboAnd(boolVar(0), boolVar(1)), 0.8) &
+    scored(comboOr(boolVar(0), boolVar(1)), 0.6) &
+    scored(comboNot(boolVar(0)), 0.3)
+  ) .
+*** expect: 3
+
+red in OC-MOSES-POPULATION :
+  bestScore(
+    scored(comboAnd(boolVar(0), boolVar(1)), 0.8) &
+    scored(comboOr(boolVar(0), boolVar(1)), 0.6) &
+    scored(comboNot(boolVar(0)), 0.3)
+  ) .
+*** expect: 0.8
+
+*** =================================================================
+*** TEST 11: URE Rule Base
+*** =================================================================
+
+red in OC-URE-RULE-BASE :
+  ruleCount(
+    urRule("deduction", 1.0, "pln-deduction") ;;
+    urRule("modus-ponens", 0.8, "pln-modus-ponens") ;;
+    urRule("revision", 0.9, "pln-revision")
+  ) .
+*** expect: 3
+
+red in OC-URE-RULE-BASE :
+  totalWeight(
+    urRule("deduction", 1.0, "pln-deduction") ;;
+    urRule("modus-ponens", 0.8, "pln-modus-ponens")
+  ) .
+*** expect: 1.8
+
+*** =================================================================
+*** TEST 12: Pattern Matching
+*** =================================================================
+
+red in OC-PATTERN-MATCHER :
+  applySubst(
+    inheritance(variable("X"), concept("animal")),
+    variable("X") |-> concept("cat")
+  ) .
+*** expect: inheritance(concept("cat"), concept("animal"))
+
+red in OC-PATTERN-MATCHER :
+  applySubst(
+    implication(variable("A"), variable("B")),
+    (variable("A") |-> concept("rain")) +
+    (variable("B") |-> concept("wet"))
+  ) .
+*** expect: implication(concept("rain"), concept("wet"))
+
+*** =================================================================
+*** TEST 13: CogServer Creation
+*** =================================================================
+
+red in OPENCOG :
+  ruleCount(defaultPLNRuleBase) .
+*** expect: 10
+
+red in OPENCOG :
+  csCycle(newCogServer(emptyAS)) .
+*** expect: 0
+
+*** =================================================================
+*** TEST 14: Forward Chaining
+*** =================================================================
+
+search [1] in OC-URE-FORWARD-CHAINER :
+  fcState(
+    [concept("cat"), stv(1.0, 0.9), defaultAV]
+    [concept("animal"), stv(1.0, 0.9), defaultAV]
+    [concept("living-thing"), stv(1.0, 0.9), defaultAV]
+    [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("animal"), concept("living-thing")), stv(0.85, 0.7), defaultAV],
+    urRule("deduction", 1.0, "pln-deduction"),
+    10,
+    0,
+    concept("cat"))
+=>+ FC:FCState .
+
+*** =================================================================
+*** DONE
+*** =================================================================
+
+q

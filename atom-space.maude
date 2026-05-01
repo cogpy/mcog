@@ -1,0 +1,339 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-ATOM-SPACE Module
+***  
+***  Implements the AtomSpace: the central hypergraph knowledge
+***  representation database of OpenCog.
+*** ================================================================ )
+
+load truth-value.maude
+load attention-value.maude
+load atom-types.maude
+
+fmod OC-ATOM-SPACE is
+  protecting OC-TRUTH-VALUE .
+  protecting OC-ATTENTION-VALUE .
+  protecting OC-ATOM-TYPES .
+  protecting NAT .
+
+  *** =============================================================
+  *** ANNOTATED ATOM: an atom with its truth and attention values
+  *** =============================================================
+  
+  sort AnnotatedAtom .
+  
+  op [_,_,_] : OcAtom OcTruthValue OcAttentionValue -> AnnotatedAtom [ctor] .
+  op [_,_] : OcAtom OcTruthValue -> AnnotatedAtom .
+  op [_] : OcAtom -> AnnotatedAtom .
+
+  *** =============================================================
+  *** NODE CONSTRUCTORS
+  *** =============================================================
+  
+  op concept : String -> ConceptNode [ctor] .
+  op number : String -> NumberNode [ctor] .
+  op predicate : String -> PredicateNode [ctor] .
+  op anchor : String -> AnchorNode [ctor] .
+  op variable : String -> VariableNode [ctor] .
+  op glob : String -> GlobNode [ctor] .
+  op schema : String -> SchemaNode [ctor] .
+  op groundedSchema : String -> GroundedSchemaNode [ctor] .
+  op definedSchema : String -> DefinedSchemaNode [ctor] .
+  op groundedPredicate : String -> GroundedPredicateNode [ctor] .
+  op definedPredicate : String -> DefinedPredicateNode [ctor] .
+  op typeNode : String -> TypeNode [ctor] .
+  op anyNode : String -> AnyNode [ctor] .
+  op objectNode : String -> ObjectNode [ctor] .
+  op booleanNode : String -> BooleanNode [ctor] .
+  op wordNode : String -> WordNode [ctor] .
+  op lexicalNode : String -> LexicalNode [ctor] .
+
+  *** =============================================================
+  *** LINK CONSTRUCTORS
+  *** =============================================================
+  
+  *** --- Outgoing set (list of atoms) ---
+  sort OcAtomList .
+  subsort OcAtom < OcAtomList .
+  op nil : -> OcAtomList [ctor] .
+  op _`,_ : OcAtomList OcAtomList -> OcAtomList [ctor assoc id: nil] .
+
+  *** --- Core Knowledge Representation Links ---
+  op inheritance : OcAtom OcAtom -> InheritanceLink [ctor] .
+  op implication : OcAtom OcAtom -> ImplicationLink [ctor] .
+  op equivalence : OcAtom OcAtom -> EquivalenceLink [ctor comm] .
+  op similarity : OcAtom OcAtom -> SimilarityLink [ctor comm] .
+  op evaluation : OcAtom OcAtomList -> EvaluationLink [ctor] .
+  op execution : OcAtom OcAtomList -> ExecutionLink [ctor] .
+  op member : OcAtom OcAtom -> MemberLink [ctor] .
+  op subset : OcAtom OcAtom -> SubsetLink [ctor] .
+  op context : OcAtom OcAtom -> ContextLink [ctor] .
+  op attraction : OcAtom OcAtom -> AttractionLink [ctor] .
+
+  *** --- URE Links ---
+  op intensionalInheritance : OcAtom OcAtom -> IntensionalInheritanceLink [ctor] .
+  op implicationScope : OcAtomList OcAtom OcAtom -> ImplicationScopeLink [ctor] .
+
+  *** --- Collection Links ---
+  op listLink : OcAtomList -> ListLink [ctor] .
+  op setLink : OcAtomList -> SetLink [ctor] .
+
+  *** --- Boolean Logic Links ---
+  op andLink : OcAtomList -> AndLink [ctor] .
+  op orLink : OcAtomList -> OrLink [ctor] .
+  op notLink : OcAtom -> NotLink [ctor] .
+  op seqAnd : OcAtomList -> SequentialAndLink [ctor] .
+  op seqOr : OcAtomList -> SequentialOrLink [ctor] .
+
+  *** --- Scope / Pattern Links ---
+  op scope : OcAtomList OcAtom -> ScopeLink [ctor] .
+  op ruleLink : OcAtomList OcAtom OcAtom -> RuleLink [ctor] .
+  op pattern : OcAtomList OcAtom -> PatternLink [ctor] .
+  op meet : OcAtomList OcAtom -> MeetLink [ctor] .
+  op queryLink : OcAtomList OcAtom OcAtom -> QueryLink [ctor] .
+  op dual : OcAtom -> DualLink [ctor] .
+  op satisfaction : OcAtomList OcAtom -> SatisfactionLink [ctor] .
+
+  *** --- State / Define Links ---
+  op stateLink : OcAtom OcAtom -> StateLink [ctor] .
+  op defineLink : OcAtom OcAtom -> DefineLink [ctor] .
+
+  *** --- Equality Links ---
+  op identicalLink : OcAtom OcAtom -> IdenticalLink [ctor] .
+  op equalLink : OcAtom OcAtom -> EqualLink [ctor comm] .
+
+  *** --- Arithmetic Links ---
+  op plusLink : OcAtomList -> PlusLink [ctor] .
+  op minusLink : OcAtom OcAtom -> MinusLink [ctor] .
+  op timesLink : OcAtomList -> TimesLink [ctor] .
+  op divideLink : OcAtom OcAtom -> DivideLink [ctor] .
+
+  *** --- Comparison Links ---
+  op greaterThan : OcAtom OcAtom -> GreaterThanLink [ctor] .
+  op lessThan : OcAtom OcAtom -> LessThanLink [ctor] .
+
+  *** --- Execution Output ---
+  op executionOutput : OcAtom OcAtomList -> ExecutionOutputLink [ctor] .
+
+  *** --- Conditional ---
+  op condLink : OcAtomList -> CondLink [ctor] .
+
+  *** --- True / False ---
+  op trueLink : OcAtomList -> TrueLink [ctor] .
+  op falseLink : OcAtomList -> FalseLink [ctor] .
+
+  *** --- Present / Absent ---
+  op presentLink : OcAtomList -> PresentLink [ctor] .
+  op absentLink : OcAtomList -> AbsentLink [ctor] .
+
+  *** --- Edge Link ---
+  op edgeLink : OcAtom OcAtom -> EdgeLink [ctor] .
+
+  *** --- Connector / Section Links ---
+  op connector : OcAtom OcAtom -> ConnectorLink [ctor] .
+  op connectorSeq : OcAtomList -> ConnectorSeq [ctor] .
+  op connectorSet : OcAtomList -> ConnectorSet [ctor] .
+  op section : OcAtom OcAtomList -> SectionLink [ctor] .
+
+  *** --- Variable Links ---
+  op variableList : OcAtomList -> VariableList [ctor] .
+  op variableSet : OcAtomList -> VariableSet [ctor] .
+  op typedVariable : OcAtom OcAtom -> TypedVariableLink [ctor] .
+
+  *** --- Type Links ---
+  op typeChoice : OcAtomList -> TypeChoiceLink [ctor] .
+  op arrowLink : OcAtom OcAtom -> ArrowLink [ctor] .
+  op signatureLink : OcAtom OcAtomList -> SignatureLink [ctor] .
+
+  *** --- Hebbian Links (ECAN) ---
+  op asymHebbian : OcAtom OcAtom -> AsymmetricHebbianLink [ctor] .
+  op symHebbian : OcAtom OcAtom -> SymmetricHebbianLink [ctor comm] .
+  op invHebbian : OcAtom OcAtom -> InverseHebbianLink [ctor] .
+  op symInvHebbian : OcAtom OcAtom -> SymmetricInverseHebbianLink [ctor comm] .
+
+  *** --- MOSES Links ---
+  op knobLink : OcAtomList -> KnobLink [ctor] .
+
+  *** --- Delete Links ---
+  op deleteLink : OcAtom -> DeleteLink [ctor] .
+
+  *** --- Interval ---
+  op intervalLink : OcAtom OcAtom -> IntervalLink [ctor] .
+
+  *** =============================================================
+  *** ATOM SPACE: a multiset (soup) of annotated atoms
+  *** =============================================================
+  
+  sort AtomSpace .
+  subsort AnnotatedAtom < AtomSpace .
+  
+  op emptyAS : -> AtomSpace [ctor] .
+  op __ : AtomSpace AtomSpace -> AtomSpace [ctor assoc comm id: emptyAS] .
+
+  *** =============================================================
+  *** ATOM SPACE OPERATIONS
+  *** =============================================================
+  
+  op addAtom : AtomSpace OcAtom OcTruthValue -> AtomSpace .
+  op addAtom : AtomSpace OcAtom -> AtomSpace .
+  op removeAtom : AtomSpace OcAtom -> AtomSpace .
+  op hasAtom : AtomSpace OcAtom -> Bool .
+  op getTV : AtomSpace OcAtom -> OcTruthValue .
+  op getAV : AtomSpace OcAtom -> OcAttentionValue .
+  op setTV : AtomSpace OcAtom OcTruthValue -> AtomSpace .
+  op setAV : AtomSpace OcAtom OcAttentionValue -> AtomSpace .
+  op ocSize : AtomSpace -> Nat .
+  op getName : OcNode -> String .
+
+  *** =============================================================
+  *** VARIABLES
+  *** =============================================================
+  vars A A1 A2 : OcAtom .
+  vars N1 : OcNode .
+  var TV TV1 : OcTruthValue .
+  var AV AV1 : OcAttentionValue .
+  var AS : AtomSpace .
+  var AA : AnnotatedAtom .
+  var S : String .
+
+  *** =============================================================
+  *** EQUATIONS
+  *** =============================================================
+  
+  eq [A, TV] = [A, TV, defaultAV] .
+  eq [A] = [A, defaultTV, defaultAV] .
+  
+  eq addAtom(AS, A, TV) = AS [A, TV, defaultAV] .
+  eq addAtom(AS, A) = AS [A, defaultTV, defaultAV] .
+  
+  eq removeAtom([A, TV, AV] AS, A) = AS .
+  eq removeAtom(AS, A) = AS [owise] .
+  
+  eq hasAtom([A, TV, AV] AS, A) = true .
+  eq hasAtom(AS, A) = false [owise] .
+  
+  eq getTV([A, TV, AV] AS, A) = TV .
+  eq getTV(AS, A) = nullTV [owise] .
+  
+  eq getAV([A, TV, AV] AS, A) = AV .
+  eq getAV(AS, A) = nullAV [owise] .
+  
+  eq setTV([A, TV, AV] AS, A, TV1) = [A, TV1, AV] AS .
+  eq setTV(AS, A, TV1) = AS [owise] .
+  
+  eq setAV([A, TV, AV] AS, A, AV1) = [A, TV, AV1] AS .
+  eq setAV(AS, A, AV1) = AS [owise] .
+  
+  eq ocSize(emptyAS) = 0 .
+  eq ocSize(AA AS) = 1 + ocSize(AS) .
+  
+  eq getName(concept(S)) = S .
+  eq getName(number(S)) = S .
+  eq getName(predicate(S)) = S .
+  eq getName(anchor(S)) = S .
+  eq getName(variable(S)) = S .
+  eq getName(glob(S)) = S .
+  eq getName(schema(S)) = S .
+  eq getName(groundedSchema(S)) = S .
+  eq getName(definedSchema(S)) = S .
+  eq getName(groundedPredicate(S)) = S .
+  eq getName(definedPredicate(S)) = S .
+  eq getName(typeNode(S)) = S .
+  eq getName(anyNode(S)) = S .
+  eq getName(objectNode(S)) = S .
+  eq getName(booleanNode(S)) = S .
+  eq getName(wordNode(S)) = S .
+  eq getName(lexicalNode(S)) = S .
+
+endfm
+
+*** =================================================================
+*** OC-ATOM-SPACE-QUERY: Pattern matching and query operations
+*** =================================================================
+
+fmod OC-ATOM-SPACE-QUERY is
+  protecting OC-ATOM-SPACE .
+
+  *** QUERY OPERATIONS
+  op getOutgoing : OcLink -> OcAtomList .
+  op source : OcLink -> OcAtom .
+  op target : OcLink -> OcAtom .
+  op ocArity : OcLink -> Nat .
+
+  *** VARIABLES
+  vars A A1 A2 A3 : OcAtom .
+  var AL : OcAtomList .
+
+  *** Binary links
+  eq getOutgoing(inheritance(A1, A2)) = A1, A2 .
+  eq getOutgoing(implication(A1, A2)) = A1, A2 .
+  eq getOutgoing(equivalence(A1, A2)) = A1, A2 .
+  eq getOutgoing(similarity(A1, A2)) = A1, A2 .
+  eq getOutgoing(member(A1, A2)) = A1, A2 .
+  eq getOutgoing(subset(A1, A2)) = A1, A2 .
+  eq getOutgoing(context(A1, A2)) = A1, A2 .
+  eq getOutgoing(attraction(A1, A2)) = A1, A2 .
+  eq getOutgoing(stateLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(defineLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(equalLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(identicalLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(edgeLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(greaterThan(A1, A2)) = A1, A2 .
+  eq getOutgoing(lessThan(A1, A2)) = A1, A2 .
+  eq getOutgoing(asymHebbian(A1, A2)) = A1, A2 .
+  eq getOutgoing(symHebbian(A1, A2)) = A1, A2 .
+  eq getOutgoing(invHebbian(A1, A2)) = A1, A2 .
+  eq getOutgoing(symInvHebbian(A1, A2)) = A1, A2 .
+  eq getOutgoing(intensionalInheritance(A1, A2)) = A1, A2 .
+  eq getOutgoing(connector(A1, A2)) = A1, A2 .
+  eq getOutgoing(arrowLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(intervalLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(minusLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(divideLink(A1, A2)) = A1, A2 .
+  eq getOutgoing(typedVariable(A1, A2)) = A1, A2 .
+  
+  *** N-ary links
+  eq getOutgoing(evaluation(A1, AL)) = A1, AL .
+  eq getOutgoing(execution(A1, AL)) = A1, AL .
+  eq getOutgoing(listLink(AL)) = AL .
+  eq getOutgoing(setLink(AL)) = AL .
+  eq getOutgoing(andLink(AL)) = AL .
+  eq getOutgoing(orLink(AL)) = AL .
+  eq getOutgoing(notLink(A1)) = A1 .
+  eq getOutgoing(plusLink(AL)) = AL .
+  eq getOutgoing(timesLink(AL)) = AL .
+  eq getOutgoing(condLink(AL)) = AL .
+  eq getOutgoing(connectorSeq(AL)) = AL .
+  eq getOutgoing(connectorSet(AL)) = AL .
+  eq getOutgoing(variableList(AL)) = AL .
+  eq getOutgoing(variableSet(AL)) = AL .
+  eq getOutgoing(typeChoice(AL)) = AL .
+  eq getOutgoing(knobLink(AL)) = AL .
+  eq getOutgoing(deleteLink(A1)) = A1 .
+  
+  *** Ternary links
+  eq getOutgoing(ruleLink(AL, A1, A2)) = AL, A1, A2 .
+  eq getOutgoing(queryLink(AL, A1, A2)) = AL, A1, A2 .
+  eq getOutgoing(implicationScope(AL, A1, A2)) = AL, A1, A2 .
+  eq getOutgoing(executionOutput(A1, AL)) = A1, AL .
+  
+  *** Source and target
+  eq source(inheritance(A1, A2)) = A1 .
+  eq target(inheritance(A1, A2)) = A2 .
+  eq source(implication(A1, A2)) = A1 .
+  eq target(implication(A1, A2)) = A2 .
+  eq source(member(A1, A2)) = A1 .
+  eq target(member(A1, A2)) = A2 .
+  eq source(subset(A1, A2)) = A1 .
+  eq target(subset(A1, A2)) = A2 .
+  eq source(asymHebbian(A1, A2)) = A1 .
+  eq target(asymHebbian(A1, A2)) = A2 .
+  
+  *** Arity
+  eq ocArity(inheritance(A1, A2)) = 2 .
+  eq ocArity(implication(A1, A2)) = 2 .
+  eq ocArity(equivalence(A1, A2)) = 2 .
+  eq ocArity(similarity(A1, A2)) = 2 .
+  eq ocArity(member(A1, A2)) = 2 .
+  eq ocArity(subset(A1, A2)) = 2 .
+
+endfm

@@ -1,0 +1,131 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-TRUTH-VALUE Module
+***  
+***  Implements the probabilistic truth value system used throughout
+***  OpenCog. A TruthValue is a pair (strength, confidence) where:
+***    - strength ∈ [0,1] represents the probability/degree of truth
+***    - confidence ∈ [0,1] represents the certainty of the strength
+***  
+***  Based on: Goertzel et al., "Probabilistic Logic Networks"
+*** ================================================================ )
+
+fmod OC-TRUTH-VALUE is
+  protecting FLOAT .
+  protecting BOOL .
+
+  *** ---------------------------------------------------------------
+  *** Sort hierarchy for truth values
+  *** ---------------------------------------------------------------
+  sorts SimpleTruthValue CountTruthValue IndefiniteTruthValue OcTruthValue .
+  subsort SimpleTruthValue CountTruthValue IndefiniteTruthValue < OcTruthValue .
+
+  *** ---------------------------------------------------------------
+  *** Constructors
+  *** ---------------------------------------------------------------
+  
+  *** Simple truth value: (strength, confidence)
+  op stv : Float Float -> SimpleTruthValue [ctor] .
+  
+  *** Count truth value: (strength, confidence, count)
+  op ctv : Float Float Float -> CountTruthValue [ctor] .
+  
+  *** Indefinite truth value: (lower, upper, confidence)
+  op itv : Float Float Float -> IndefiniteTruthValue [ctor] .
+  
+  *** Default / null truth value
+  op nullTV : -> OcTruthValue [ctor] .
+  op defaultTV : -> SimpleTruthValue .
+
+  *** ---------------------------------------------------------------
+  *** Accessors
+  *** ---------------------------------------------------------------
+  op tvStrength : OcTruthValue -> Float .
+  op tvConfidence : OcTruthValue -> Float .
+  op tvCount : OcTruthValue -> Float .
+
+  *** ---------------------------------------------------------------
+  *** Truth value arithmetic (used by PLN formulas)
+  *** ---------------------------------------------------------------
+  op tvRevision : OcTruthValue OcTruthValue -> OcTruthValue .
+  op tvNegate : OcTruthValue -> OcTruthValue .
+  op tvAnd : OcTruthValue OcTruthValue -> OcTruthValue .
+  op tvOr : OcTruthValue OcTruthValue -> OcTruthValue .
+  
+  *** Confidence-to-count conversion constant (default k = 800.0)
+  op kConst : -> Float .
+  
+  *** Utility: clamp to [0,1]
+  op clamp01 : Float -> Float .
+  
+  *** Utility: count-to-confidence and confidence-to-count
+  op countToConf : Float -> Float .
+  op confToCount : Float -> Float .
+
+  *** ---------------------------------------------------------------
+  *** Variables
+  *** ---------------------------------------------------------------
+  vars S S1 S2 C C1 C2 N N1 N2 L U : Float .
+
+  *** ---------------------------------------------------------------
+  *** Equations
+  *** ---------------------------------------------------------------
+  
+  eq defaultTV = stv(1.0, 0.0) .
+  
+  *** Accessors for SimpleTruthValue
+  eq tvStrength(stv(S, C)) = S .
+  eq tvConfidence(stv(S, C)) = C .
+  eq tvCount(stv(S, C)) = confToCount(C) .
+  
+  *** Accessors for CountTruthValue
+  eq tvStrength(ctv(S, C, N)) = S .
+  eq tvConfidence(ctv(S, C, N)) = C .
+  eq tvCount(ctv(S, C, N)) = N .
+  
+  *** Accessors for IndefiniteTruthValue
+  eq tvStrength(itv(L, U, C)) = (L + U) / 2.0 .
+  eq tvConfidence(itv(L, U, C)) = C .
+  eq tvCount(itv(L, U, C)) = confToCount(C) .
+  
+  *** Null truth value accessors
+  eq tvStrength(nullTV) = 0.0 .
+  eq tvConfidence(nullTV) = 0.0 .
+  eq tvCount(nullTV) = 0.0 .
+  
+  *** The confidence-count conversion constant
+  eq kConst = 800.0 .
+  
+  *** Clamp a float to [0, 1]
+  eq clamp01(S) = if S < 0.0 then 0.0
+                  else (if S > 1.0 then 1.0 else S fi) fi .
+  
+  *** Count ↔ Confidence conversions
+  eq countToConf(N) = if N < 0.0 then 0.0
+                      else N / (N + kConst) fi .
+  eq confToCount(C) = if C >= 1.0 then 1.0e10
+                      else (if C <= 0.0 then 0.0
+                            else kConst * C / (1.0 - C) fi) fi .
+  
+  *** PLN Revision Rule
+  ceq tvRevision(stv(S1, C1), stv(S2, C2)) =
+      stv(clamp01(
+        if N1 + N2 > 0.0 
+        then (S1 * N1 + S2 * N2) / (N1 + N2)
+        else 0.0 fi),
+        clamp01(countToConf(N1 + N2)))
+    if N1 := confToCount(C1) /\
+       N2 := confToCount(C2) .
+  
+  *** Negation
+  eq tvNegate(stv(S, C)) = stv(clamp01(1.0 - S), C) .
+  eq tvNegate(nullTV) = nullTV .
+  
+  *** Conjunction (independent assumption): s_and = s1 * s2
+  eq tvAnd(stv(S1, C1), stv(S2, C2)) = 
+     stv(clamp01(S1 * S2), clamp01(min(C1, C2))) .
+  
+  *** Disjunction (independent assumption): s_or = 1 - (1-s1)(1-s2)
+  eq tvOr(stv(S1, C1), stv(S2, C2)) = 
+     stv(clamp01(1.0 - (1.0 - S1) * (1.0 - S2)), clamp01(min(C1, C2))) .
+
+endfm

@@ -1,0 +1,244 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-MOSES Module
+***  
+***  Meta-Optimizing Semantic Evolutionary Search (MOSES)
+***  
+***  Based on: Looks, "Competent Program Evolution" (PhD thesis, 2006)
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** COMBO LANGUAGE
+*** =================================================================
+
+fmod OC-COMBO is
+  protecting FLOAT .
+  protecting BOOL .
+  protecting NAT .
+
+  *** COMBO Expression Sorts
+  sorts ComboExpr BoolExpr ArithExpr .
+  subsort BoolExpr ArithExpr < ComboExpr .
+
+  *** Boolean constants
+  ops comboTrue comboFalse : -> BoolExpr [ctor] .
+  
+  *** Boolean input variable (indexed)
+  op boolVar : Nat -> BoolExpr [ctor] .
+  
+  *** Boolean operators
+  op comboAnd : BoolExpr BoolExpr -> BoolExpr [ctor comm] .
+  op comboOr : BoolExpr BoolExpr -> BoolExpr [ctor comm] .
+  op comboNot : BoolExpr -> BoolExpr [ctor] .
+  
+  *** Conditional
+  op comboIf : BoolExpr ComboExpr ComboExpr -> ComboExpr [ctor] .
+
+  *** Numeric constant
+  op comboNum : Float -> ArithExpr [ctor] .
+  
+  *** Numeric input variable
+  op arithVar : Nat -> ArithExpr [ctor] .
+  
+  *** Arithmetic operators
+  op comboPlus : ArithExpr ArithExpr -> ArithExpr [ctor comm] .
+  op comboMinus : ArithExpr ArithExpr -> ArithExpr [ctor] .
+  op comboTimes : ArithExpr ArithExpr -> ArithExpr [ctor comm] .
+  op comboDiv : ArithExpr ArithExpr -> ArithExpr [ctor] .
+  
+  *** Comparison
+  op comboGT : ArithExpr ArithExpr -> BoolExpr [ctor] .
+  op comboLT : ArithExpr ArithExpr -> BoolExpr [ctor] .
+  op comboEQ : ArithExpr ArithExpr -> BoolExpr [ctor comm] .
+  
+  *** Math functions
+  op comboAbs : ArithExpr -> ArithExpr [ctor] .
+
+  *** Simplification rules
+  vars B B1 B2 : BoolExpr .
+  vars E E1 E2 : ComboExpr .
+  vars X Y : ArithExpr .
+  vars F G : Float .
+
+  eq comboNot(comboTrue) = comboFalse .
+  eq comboNot(comboFalse) = comboTrue .
+  eq comboNot(comboNot(B)) = B .
+  eq comboAnd(comboTrue, B) = B .
+  eq comboAnd(comboFalse, B) = comboFalse .
+  eq comboAnd(B, B) = B .
+  eq comboOr(comboTrue, B) = comboTrue .
+  eq comboOr(comboFalse, B) = B .
+  eq comboOr(B, B) = B .
+  
+  eq comboIf(comboTrue, E1, E2) = E1 .
+  eq comboIf(comboFalse, E1, E2) = E2 .
+  
+  eq comboPlus(comboNum(0.0), X) = X .
+  eq comboTimes(comboNum(1.0), X) = X .
+  eq comboTimes(comboNum(0.0), X) = comboNum(0.0) .
+  eq comboMinus(X, comboNum(0.0)) = X .
+  
+  eq comboPlus(comboNum(F), comboNum(G)) = comboNum(F + G) .
+  eq comboMinus(comboNum(F), comboNum(G)) = comboNum(F - G) .
+  eq comboTimes(comboNum(F), comboNum(G)) = comboNum(F * G) .
+  ceq comboDiv(comboNum(F), comboNum(G)) = comboNum(F / G) 
+    if G =/= 0.0 .
+
+endfm
+
+*** =================================================================
+*** COMBO EVALUATION
+*** =================================================================
+
+fmod OC-COMBO-EVAL is
+  protecting OC-COMBO .
+
+  *** Input environment
+  sort OcBinding .
+  sort OcEnvironment .
+  subsort OcBinding < OcEnvironment .
+  
+  op emptyEnv : -> OcEnvironment [ctor] .
+  op _==>_ : Nat Float -> OcBinding [ctor] .
+  op _;_ : OcEnvironment OcEnvironment -> OcEnvironment [ctor assoc comm id: emptyEnv] .
+
+  *** Evaluation functions
+  op evalBool : BoolExpr OcEnvironment -> Bool .
+  op evalArith : ArithExpr OcEnvironment -> Float .
+  op lookupVar : Nat OcEnvironment -> Float .
+
+  vars N M : Nat .
+  vars F G V : Float .
+  vars B B1 B2 : BoolExpr .
+  vars X Y : ArithExpr .
+  var Env : OcEnvironment .
+
+  eq lookupVar(N, (N ==> V) ; Env) = V .
+  eq lookupVar(N, emptyEnv) = 0.0 .
+  
+  eq evalBool(comboTrue, Env) = true .
+  eq evalBool(comboFalse, Env) = false .
+  eq evalBool(boolVar(N), Env) = lookupVar(N, Env) > 0.5 .
+  eq evalBool(comboAnd(B1, B2), Env) = evalBool(B1, Env) and evalBool(B2, Env) .
+  eq evalBool(comboOr(B1, B2), Env) = evalBool(B1, Env) or evalBool(B2, Env) .
+  eq evalBool(comboNot(B), Env) = not evalBool(B, Env) .
+  eq evalBool(comboGT(X, Y), Env) = evalArith(X, Env) > evalArith(Y, Env) .
+  eq evalBool(comboLT(X, Y), Env) = evalArith(X, Env) < evalArith(Y, Env) .
+  eq evalBool(comboEQ(X, Y), Env) = evalArith(X, Env) == evalArith(Y, Env) .
+  
+  eq evalArith(comboNum(F), Env) = F .
+  eq evalArith(arithVar(N), Env) = lookupVar(N, Env) .
+  eq evalArith(comboPlus(X, Y), Env) = evalArith(X, Env) + evalArith(Y, Env) .
+  eq evalArith(comboMinus(X, Y), Env) = evalArith(X, Env) - evalArith(Y, Env) .
+  eq evalArith(comboTimes(X, Y), Env) = evalArith(X, Env) * evalArith(Y, Env) .
+  ceq evalArith(comboDiv(X, Y), Env) = evalArith(X, Env) / evalArith(Y, Env) 
+    if evalArith(Y, Env) =/= 0.0 .
+  eq evalArith(comboAbs(X), Env) = abs(evalArith(X, Env)) .
+
+endfm
+
+*** =================================================================
+*** MOSES KNOBS
+*** =================================================================
+
+fmod OC-MOSES-KNOBS is
+  protecting OC-COMBO .
+  protecting NAT .
+
+  sorts Knob KnobList .
+  subsort Knob < KnobList .
+
+  op boolKnob : Nat Nat -> Knob [ctor] .
+  op arithKnob : Nat Float -> Knob [ctor] .
+  op discKnob : Nat Nat Nat -> Knob [ctor] .
+
+  op noKnobs : -> KnobList [ctor] .
+  op _::_ : KnobList KnobList -> KnobList [ctor assoc id: noKnobs] .
+
+  sort DecoratedProgram .
+  op decorated : ComboExpr KnobList -> DecoratedProgram [ctor] .
+
+  op knobCount : KnobList -> Nat .
+  var K : Knob .
+  var KL : KnobList .
+  eq knobCount(noKnobs) = 0 .
+  eq knobCount(K :: KL) = 1 + knobCount(KL) .
+
+endfm
+
+*** =================================================================
+*** MOSES DEME & METAPOPULATION
+*** =================================================================
+
+fmod OC-MOSES-POPULATION is
+  protecting OC-MOSES-KNOBS .
+  protecting OC-COMBO-EVAL .
+  protecting FLOAT .
+
+  sort ScoredProgram .
+  op scored : ComboExpr Float -> ScoredProgram [ctor] .
+
+  sort Deme .
+  subsort ScoredProgram < Deme .
+  op emptyDeme : -> Deme [ctor] .
+  op _&_ : Deme Deme -> Deme [ctor assoc comm id: emptyDeme] .
+
+  sort Metapopulation .
+  op metapop : Deme ComboExpr Float Nat -> Metapopulation [ctor] .
+
+  op demeSize : Deme -> Nat .
+  op bestScore : Deme -> Float .
+
+  vars P P1 P2 : ComboExpr .
+  vars S S1 S2 : Float .
+  var D : Deme .
+  var SP : ScoredProgram .
+
+  eq demeSize(emptyDeme) = 0 .
+  eq demeSize(SP & D) = 1 + demeSize(D) .
+  
+  eq bestScore(emptyDeme) = -1.0e10 .
+  eq bestScore(scored(P, S) & D) = 
+     if S > bestScore(D) then S else bestScore(D) fi .
+
+endfm
+
+*** =================================================================
+*** MOSES EVOLUTIONARY OPERATORS
+*** =================================================================
+
+mod OC-MOSES-EVOLVE is
+  protecting OC-MOSES-POPULATION .
+
+  vars B B1 B2 : BoolExpr .
+  vars X Y : ArithExpr .
+  vars P PBest : ComboExpr .
+  vars S SBest : Float .
+  var D : Deme .
+  var N : Nat .
+
+  *** Boolean mutations
+  rl [mutate-negate] :
+      scored(comboNot(B), S) => scored(B, 0.0) .
+  rl [mutate-add-not] :
+      scored(B, S) => scored(comboNot(B), 0.0) .
+  rl [mutate-and-to-or] :
+      scored(comboAnd(B1, B2), S) => scored(comboOr(B1, B2), 0.0) .
+  rl [mutate-or-to-and] :
+      scored(comboOr(B1, B2), S) => scored(comboAnd(B1, B2), 0.0) .
+
+  *** Arithmetic mutations
+  rl [mutate-plus-to-minus] :
+      scored(comboPlus(X, Y), S) => scored(comboMinus(X, Y), 0.0) .
+  rl [mutate-minus-to-plus] :
+      scored(comboMinus(X, Y), S) => scored(comboPlus(X, Y), 0.0) .
+
+  *** Metapopulation update
+  crl [update-metapop] :
+      metapop(scored(P, S) & D, PBest, SBest, N)
+    =>
+      metapop(D, P, S, N + 1)
+    if S > SBest .
+
+endm

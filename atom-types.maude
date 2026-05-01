@@ -1,0 +1,218 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-ATOM-TYPES Module
+***  
+***  Declares the complete OpenCog atom type hierarchy as a Maude
+***  sort lattice. Each OpenCog atom type becomes a Maude sort,
+***  and the type inheritance relation becomes the subsort relation.
+***  
+***  Based on: opencog/atomspace atom_types.script
+*** ================================================================ )
+
+fmod OC-ATOM-TYPES is
+  protecting STRING .
+
+  *** TOP-LEVEL SORTS
+  sorts OcValue OcAtom .
+  subsort OcAtom < OcValue .
+
+  *** NODE AND LINK
+  sorts OcNode OcLink .
+  subsort OcNode OcLink < OcAtom .
+
+  *** --- Core Node Types ---
+  sorts ConceptNode NumberNode PredicateNode .
+  subsort ConceptNode NumberNode PredicateNode < OcNode .
+
+  sorts AnchorNode ObjectNode AnyNode .
+  subsort AnchorNode ObjectNode AnyNode < OcNode .
+
+  *** --- Procedure Nodes ---
+  sorts ProcedureNode SchemaNode GroundedSchemaNode DefinedSchemaNode .
+  sorts GroundedPredicateNode DefinedPredicateNode .
+  subsort ProcedureNode < ObjectNode .
+  subsort SchemaNode < ProcedureNode .
+  subsort GroundedSchemaNode DefinedSchemaNode < SchemaNode .
+  subsort GroundedPredicateNode DefinedPredicateNode < PredicateNode .
+
+  *** --- Lexical Nodes ---
+  sorts LexicalNode ItemNode TagNode NameNode .
+  subsort LexicalNode < PredicateNode .
+  subsort ItemNode TagNode < LexicalNode .
+  subsort NameNode < TagNode .
+
+  *** --- Type Nodes ---
+  sorts TypeNode TypeInhNode DefinedTypeNode SignNode .
+  subsort TypeNode < OcNode .
+  subsort TypeInhNode DefinedTypeNode SignNode < TypeNode .
+
+  *** --- Variable Nodes ---
+  sorts VariableNode GlobNode .
+  subsort VariableNode < AnyNode .
+  subsort GlobNode < VariableNode .
+
+  *** --- NLP Nodes ---
+  sorts WordNode WordInstanceNode WordSenseNode DialogNode UtteranceNode .
+  subsort WordNode WordInstanceNode < OcNode .
+  subsort WordSenseNode < ConceptNode .
+  subsort DialogNode UtteranceNode < ConceptNode .
+
+  *** --- MOSES Nodes ---
+  sorts BooleanNode .
+  subsort BooleanNode < OcNode .
+
+  *** LINK HIERARCHY
+
+  *** --- Ordered vs Unordered Links ---
+  sorts OrderedLink UnorderedLink .
+  subsort OrderedLink UnorderedLink < OcLink .
+
+  *** --- Collection Links ---
+  sorts ListLink SetLink .
+  subsort ListLink < OrderedLink .
+  subsort SetLink < UnorderedLink .
+
+  *** --- Evaluatable Links ---
+  sorts EvaluatableLink VirtualLink .
+  subsort EvaluatableLink < OcLink .
+  subsort VirtualLink < EvaluatableLink .
+
+  *** --- Boolean Logic Links ---
+  sorts AndLink OrLink NotLink SequentialAndLink SequentialOrLink ChoiceLink .
+  subsort AndLink OrLink NotLink < EvaluatableLink .
+  subsort SequentialAndLink SequentialOrLink ChoiceLink < EvaluatableLink .
+
+  *** --- Presence / Absence Links ---
+  sorts PresentLink AbsentLink .
+  subsort PresentLink < EvaluatableLink .
+  subsort AbsentLink < PresentLink .
+
+  *** --- Core Relational Links ---
+  sorts MemberLink SubsetLink ContextLink .
+  subsort MemberLink SubsetLink < EvaluatableLink .
+  subsort ContextLink < OrderedLink .
+
+  *** --- Free Links ---
+  sorts FreeLink EvaluationLink .
+  subsort FreeLink < OrderedLink .
+  subsort EvaluationLink < FreeLink .
+
+  *** --- Unique / State Links ---
+  sorts UniqueLink StateLink DefineLink .
+  subsort UniqueLink < FreeLink .
+  subsort StateLink DefineLink < UniqueLink .
+
+  *** --- Equality / Constraint Links ---
+  sorts IdenticalLink EqualLink .
+  subsort IdenticalLink EqualLink < VirtualLink .
+
+  *** --- Similarity Link ---
+  sorts SimilarityLink .
+  subsort SimilarityLink < UnorderedLink .
+
+  *** --- Comparison Links ---
+  sorts GreaterThanLink LessThanLink .
+  subsort GreaterThanLink LessThanLink < VirtualLink .
+
+  *** --- Scope / Pattern Links ---
+  sorts ScopeLink RuleLink PatternLink SatisfyingLink .
+  sorts MeetLink QueryLink DualLink SatisfactionLink .
+  subsort ScopeLink < OrderedLink .
+  subsort RuleLink < ScopeLink .
+  subsort PatternLink < RuleLink .
+  subsort SatisfyingLink < PatternLink .
+  subsort MeetLink QueryLink DualLink SatisfactionLink < SatisfyingLink .
+
+  *** --- Executable / Function Links ---
+  sorts ExecutableLink FunctionLink .
+  subsort ExecutableLink < OcLink .
+  subsort FunctionLink < ExecutableLink .
+
+  *** --- Arithmetic Links ---
+  sorts ArithmeticLink FoldLink .
+  sorts PlusLink MinusLink TimesLink DivideLink .
+  subsort FoldLink < FunctionLink .
+  subsort ArithmeticLink < FoldLink .
+  subsort PlusLink MinusLink < ArithmeticLink .
+  subsort TimesLink DivideLink < ArithmeticLink .
+
+  *** --- Value Access Links ---
+  sorts ValueOfLink .
+  subsort ValueOfLink < FunctionLink .
+
+  *** --- Execution Links ---
+  sorts ExecutionOutputLink CondLink .
+  subsort ExecutionOutputLink CondLink < FunctionLink .
+
+  *** --- Knowledge Representation Links ---
+  sorts ImplicationLink InheritanceLink .
+  sorts AssociativeLink EquivalenceLink ExecutionLink .
+  subsort ImplicationLink InheritanceLink < OrderedLink .
+  subsort AssociativeLink < OrderedLink .
+  subsort EquivalenceLink < UnorderedLink .
+  subsort ExecutionLink < OrderedLink .
+
+  *** --- Edge Link ---
+  sorts EdgeLink .
+  subsort EdgeLink < OrderedLink .
+
+  *** --- True/False Links ---
+  sorts TrueLink FalseLink .
+  subsort TrueLink FalseLink < EvaluatableLink .
+
+  *** --- Interval Link ---
+  sorts IntervalLink .
+  subsort IntervalLink < OrderedLink .
+
+  *** --- URE Types ---
+  sorts ImplicationScopeLink AttractionLink IntensionalInheritanceLink .
+  subsort ImplicationScopeLink < RuleLink .
+  subsort AttractionLink < OrderedLink .
+  subsort IntensionalInheritanceLink < InheritanceLink .
+
+  *** --- ECAN Types ---
+  sorts HebbianLink AsymmetricHebbianLink SymmetricHebbianLink .
+  sorts InverseHebbianLink SymmetricInverseHebbianLink .
+  subsort HebbianLink < OcLink .
+  subsort AsymmetricHebbianLink InverseHebbianLink < OrderedLink .
+  subsort SymmetricHebbianLink SymmetricInverseHebbianLink < UnorderedLink .
+  subsort AsymmetricHebbianLink InverseHebbianLink < HebbianLink .
+  subsort SymmetricHebbianLink SymmetricInverseHebbianLink < HebbianLink .
+
+  *** --- MOSES Types ---
+  sorts KnobLink .
+  subsort KnobLink < FunctionLink .
+
+  *** --- Variable Links ---
+  sorts VariableList VariableSet TypedVariableLink .
+  subsort VariableList < OrderedLink .
+  subsort VariableSet < UnorderedLink .
+  subsort TypedVariableLink < OrderedLink .
+
+  *** --- Type Links ---
+  sorts TypeChoiceLink ArrowLink SignatureLink .
+  subsort TypeChoiceLink < ChoiceLink .
+  subsort ArrowLink < OrderedLink .
+  subsort SignatureLink < OrderedLink .
+
+  *** --- Connector / Section Links ---
+  sorts ConnectorLink ConnectorSeq ConnectorSet SectionLink .
+  subsort ConnectorLink < OrderedLink .
+  subsort ConnectorSeq < OrderedLink .
+  subsort ConnectorSet < UnorderedLink .
+  subsort SectionLink < OrderedLink .
+
+  *** --- Delete Links ---
+  sorts DeleteLink .
+  subsort DeleteLink < OcLink .
+
+  *** --- Foreign AST ---
+  sorts ForeignAST SExprAST JsonAST .
+  subsort ForeignAST < OcLink .
+  subsort SExprAST JsonAST < ForeignAST .
+
+  *** --- NLP Links ---
+  sorts ActionLink FeatureLink WordSenseLink .
+  subsort ActionLink FeatureLink < OrderedLink .
+  subsort WordSenseLink < AssociativeLink .
+
+endfm

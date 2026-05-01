@@ -1,0 +1,141 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-ECAN Module
+***  
+***  Economic Attention Networks: attention allocation subsystem.
+***  
+***  Based on: Goertzel et al., "Economic Attention Networks"
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** ECAN CONFIGURATION
+*** =================================================================
+
+fmod OC-ECAN-CONFIG is
+  protecting INT .
+  protecting FLOAT .
+  protecting BOOL .
+
+  sort ECANParams .
+  
+  op ecanParams : Int Int Float Float Float Int -> ECANParams [ctor] .
+  op afBoundary : ECANParams -> Int .
+  op maxSTI : ECANParams -> Int .
+  op spreadFraction : ECANParams -> Float .
+  op hebbianDecay : ECANParams -> Float .
+  op rentRate : ECANParams -> Float .
+  op forgettingThreshold : ECANParams -> Int .
+  op defaultECANParams : -> ECANParams .
+
+  var AFB MaxS ForgT : Int .
+  var SF HD RR : Float .
+
+  eq defaultECANParams = ecanParams(100, 32767, 0.1, 0.05, 0.01, -400) .
+  eq afBoundary(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = AFB .
+  eq maxSTI(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = MaxS .
+  eq spreadFraction(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = SF .
+  eq hebbianDecay(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = HD .
+  eq rentRate(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = RR .
+  eq forgettingThreshold(ecanParams(AFB, MaxS, SF, HD, RR, ForgT)) = ForgT .
+
+endfm
+
+*** =================================================================
+*** ECAN ATTENTION DYNAMICS
+*** =================================================================
+
+mod OC-ECAN is
+  protecting OC-ECAN-CONFIG .
+  protecting OC-ATOM-SPACE-QUERY .
+
+  vars A A1 A2 : OcAtom .
+  vars STI1 STI2 LTI1 LTI2 Delta : Int .
+  vars V1 V2 : Bool .
+  vars SAB CAB : Float .
+  var TV TV1 TV2 : OcTruthValue .
+  var AV : OcAttentionValue .
+  var AS : AtomSpace .
+
+  *** max for Int
+  op maxInt : Int Int -> Int .
+  vars I1 I2 : Int .
+  eq maxInt(I1, I2) = if I1 >= I2 then I1 else I2 fi .
+
+  *** IMPORTANCE SPREADING: Asymmetric Hebbian A1 → A2
+  *** Delta is simplified to STI1 / 10 (approximation of STI * strength * 0.1)
+  crl [ecan-spread-asym] :
+      [asymHebbian(A1, A2), stv(SAB, CAB), AV]
+      [A1, TV1, av(STI1, LTI1, V1)]
+      [A2, TV2, av(STI2, LTI2, V2)]
+      AS
+    =>
+      [asymHebbian(A1, A2), stv(SAB, CAB), AV]
+      [A1, TV1, av(STI1 - Delta, LTI1, V1)]
+      [A2, TV2, av(STI2 + Delta, LTI2, V2)]
+      AS
+    if STI1 > 0
+    /\ Delta := maxInt(1, STI1 quo 10) .
+
+  *** IMPORTANCE SPREADING: Symmetric Hebbian A1 ↔ A2
+  crl [ecan-spread-sym] :
+      [symHebbian(A1, A2), stv(SAB, CAB), AV]
+      [A1, TV1, av(STI1, LTI1, V1)]
+      [A2, TV2, av(STI2, LTI2, V2)]
+      AS
+    =>
+      [symHebbian(A1, A2), stv(SAB, CAB), AV]
+      [A1, TV1, av(STI1 - Delta, LTI1, V1)]
+      [A2, TV2, av(STI2 + Delta, LTI2, V2)]
+      AS
+    if STI1 > STI2
+    /\ Delta := maxInt(1, (STI1 - STI2) quo 20) .
+
+  *** RENT COLLECTION
+  crl [ecan-collect-rent] :
+      [A, TV, av(STI1, LTI1, V1)]
+      AS
+    =>
+      [A, TV, av(STI1 - 1, LTI1, V1)]
+      AS
+    if STI1 > 0 /\ V1 == false .
+
+  *** FORGETTING
+  crl [ecan-forget] :
+      [A, TV, av(STI1, LTI1, false)]
+      AS
+    =>
+      AS
+    if STI1 < -400 .
+
+  *** HEBBIAN LEARNING: strengthen when both in focus
+  crl [ecan-hebbian-strengthen] :
+      [symHebbian(A1, A2), stv(SAB, CAB), AV]
+      [A1, TV1, av(STI1, LTI1, V1)]
+      [A2, TV2, av(STI2, LTI2, V2)]
+      AS
+    =>
+      [symHebbian(A1, A2), 
+       stv(clamp01(SAB + 0.01 * (1.0 - SAB)), CAB),
+       AV]
+      [A1, TV1, av(STI1, LTI1, V1)]
+      [A2, TV2, av(STI2, LTI2, V2)]
+      AS
+    if STI1 > 100 /\ STI2 > 100 .
+
+  *** STIMULATION
+  rl [ecan-stimulate] :
+      [A, TV, av(STI1, LTI1, V1)]
+    =>
+      [A, TV, av(STI1 + 50, LTI1, V1)] .
+
+  *** LTI UPDATE: atoms in focus accumulate LTI
+  crl [ecan-lti-update] :
+      [A, TV, av(STI1, LTI1, V1)]
+      AS
+    =>
+      [A, TV, av(STI1, LTI1 + 1, V1)]
+      AS
+    if STI1 > 100 .
+
+endm

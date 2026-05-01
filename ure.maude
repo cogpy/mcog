@@ -1,0 +1,338 @@
+***( ================================================================
+***  OpenCog in Pure Maude — URE, CogServer, Pattern Matcher, OPENCOG
+*** ================================================================ )
+
+load pln.maude
+load ecan.maude
+load moses.maude
+
+*** =================================================================
+*** URE RULE BASE
+*** =================================================================
+
+fmod OC-URE-RULE-BASE is
+  protecting OC-ATOM-SPACE .
+  protecting FLOAT .
+  protecting STRING .
+
+  sort URRule .
+  sort URRuleBase .
+  subsort URRule < URRuleBase .
+
+  op urRule : String Float String -> URRule [ctor] .
+  op emptyRB : -> URRuleBase [ctor] .
+  op _;;_ : URRuleBase URRuleBase -> URRuleBase [ctor assoc comm id: emptyRB] .
+
+  op ruleName : URRule -> String .
+  op ruleWeight : URRule -> Float .
+  op ruleLabel : URRule -> String .
+  op ruleCount : URRuleBase -> Nat .
+  op totalWeight : URRuleBase -> Float .
+  op addRule : URRuleBase URRule -> URRuleBase .
+  op removeRule : URRuleBase String -> URRuleBase .
+
+  var RN RL RN2 : String .
+  var RW RW2 : Float .
+  var R : URRule .
+  var RB : URRuleBase .
+
+  eq ruleName(urRule(RN, RW, RL)) = RN .
+  eq ruleWeight(urRule(RN, RW, RL)) = RW .
+  eq ruleLabel(urRule(RN, RW, RL)) = RL .
+  
+  eq ruleCount(emptyRB) = 0 .
+  eq ruleCount(R ;; RB) = 1 + ruleCount(RB) .
+  
+  eq totalWeight(emptyRB) = 0.0 .
+  eq totalWeight(urRule(RN, RW, RL) ;; RB) = RW + totalWeight(RB) .
+  
+  eq addRule(RB, R) = R ;; RB .
+  eq removeRule(urRule(RN, RW, RL) ;; RB, RN) = RB .
+  eq removeRule(RB, RN) = RB [owise] .
+
+endfm
+
+*** =================================================================
+*** URE FORWARD CHAINER
+*** =================================================================
+
+mod OC-URE-FORWARD-CHAINER is
+  protecting OC-URE-RULE-BASE .
+  protecting OC-PLN-RULES .
+
+  sort FCState .
+  op fcState : AtomSpace URRuleBase Nat Nat OcAtom -> FCState [ctor] .
+
+  op fcAS : FCState -> AtomSpace .
+  op fcRB : FCState -> URRuleBase .
+  op fcMaxIter : FCState -> Nat .
+  op fcCurIter : FCState -> Nat .
+  op fcSource : FCState -> OcAtom .
+
+  var AS : AtomSpace .
+  var RB : URRuleBase .
+  vars MaxI CurI : Nat .
+  var Src : OcAtom .
+  vars A B C : OcAtom .
+  vars SAB SBC SA SB SC CAB CBC CA CB CC : Float .
+  var AV AV1 AV2 : OcAttentionValue .
+
+  eq fcAS(fcState(AS, RB, MaxI, CurI, Src)) = AS .
+  eq fcRB(fcState(AS, RB, MaxI, CurI, Src)) = RB .
+  eq fcMaxIter(fcState(AS, RB, MaxI, CurI, Src)) = MaxI .
+  eq fcCurIter(fcState(AS, RB, MaxI, CurI, Src)) = CurI .
+  eq fcSource(fcState(AS, RB, MaxI, CurI, Src)) = Src .
+
+  *** FC Deduction step
+  crl [fc-deduction] :
+      fcState(
+        [inheritance(A, B), stv(SAB, CAB), AV1]
+        [inheritance(B, C), stv(SBC, CBC), AV2]
+        [A, stv(SA, CA), AV]
+        [B, stv(SB, CB), AV]
+        [C, stv(SC, CC), AV]
+        AS,
+        RB, MaxI, CurI, Src)
+    =>
+      fcState(
+        [inheritance(A, B), stv(SAB, CAB), AV1]
+        [inheritance(B, C), stv(SBC, CBC), AV2]
+        [A, stv(SA, CA), AV]
+        [B, stv(SB, CB), AV]
+        [C, stv(SC, CC), AV]
+        [inheritance(A, C),
+         plnDeduction(SAB, CAB, SBC, CBC, SA, SB, SC),
+         defaultAV]
+        AS,
+        RB, MaxI, CurI + 1, Src)
+    if CurI < MaxI /\ CAB > 0.0 /\ CBC > 0.0 /\ A =/= C .
+
+  *** FC Modus Ponens step
+  crl [fc-modus-ponens] :
+      fcState(
+        [A, stv(SA, CA), AV1]
+        [implication(A, B), stv(SAB, CAB), AV2]
+        AS,
+        RB, MaxI, CurI, Src)
+    =>
+      fcState(
+        [A, stv(SA, CA), AV1]
+        [implication(A, B), stv(SAB, CAB), AV2]
+        [B, plnModusPonens(SA, CA, SAB, CAB), defaultAV]
+        AS,
+        RB, MaxI, CurI + 1, Src)
+    if CurI < MaxI /\ CA > 0.0 /\ CAB > 0.0 .
+
+endm
+
+*** =================================================================
+*** URE BACKWARD CHAINER
+*** =================================================================
+
+mod OC-URE-BACKWARD-CHAINER is
+  protecting OC-URE-RULE-BASE .
+  protecting OC-PLN-FORMULAS .
+  protecting OC-ATOM-SPACE-QUERY .
+
+  sort BCState .
+  sort BCGoalStack .
+  subsort OcAtom < BCGoalStack .
+
+  op emptyGoals : -> BCGoalStack [ctor] .
+  op _>>_ : BCGoalStack BCGoalStack -> BCGoalStack [ctor assoc id: emptyGoals] .
+
+  op bcState : AtomSpace URRuleBase BCGoalStack Nat Nat -> BCState [ctor] .
+
+  var AS : AtomSpace .
+  var RB : URRuleBase .
+  var Goals : BCGoalStack .
+  vars MaxD CurD : Nat .
+  vars A B C : OcAtom .
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+
+  *** BC Deduction decomposition
+  crl [bc-deduction-decompose] :
+      bcState(
+        [A, stv(SA:Float, CA:Float), AV]
+        [B, stv(SB:Float, CB:Float), AV]
+        [C, stv(SC:Float, CC:Float), AV]
+        AS,
+        RB,
+        inheritance(A, C) >> Goals,
+        MaxD, CurD)
+    =>
+      bcState(
+        [A, stv(SA:Float, CA:Float), AV]
+        [B, stv(SB:Float, CB:Float), AV]
+        [C, stv(SC:Float, CC:Float), AV]
+        AS,
+        RB,
+        inheritance(A, B) >> inheritance(B, C) >> Goals,
+        MaxD, CurD + 1)
+    if CurD < MaxD /\ A =/= B /\ B =/= C /\ A =/= C .
+
+  *** BC goal resolution: goal atom already in AtomSpace
+  crl [bc-resolve] :
+      bcState(
+        [A, TV, AV]
+        AS,
+        RB,
+        A >> Goals,
+        MaxD, CurD)
+    =>
+      bcState(
+        [A, TV, AV]
+        AS,
+        RB,
+        Goals,
+        MaxD, CurD)
+    if tvConfidence(TV) > 0.0 .
+
+  *** BC link resolution
+  crl [bc-resolve-link] :
+      bcState(
+        [inheritance(A, B), TV, AV]
+        AS,
+        RB,
+        inheritance(A, B) >> Goals,
+        MaxD, CurD)
+    =>
+      bcState(
+        [inheritance(A, B), TV, AV]
+        AS,
+        RB,
+        Goals,
+        MaxD, CurD)
+    if tvConfidence(TV) > 0.0 .
+
+endm
+
+*** =================================================================
+*** COG-SERVER
+*** =================================================================
+
+mod OC-COG-SERVER is
+  protecting OC-URE-FORWARD-CHAINER .
+  protecting OC-URE-BACKWARD-CHAINER .
+  protecting OC-ECAN .
+  protecting OC-MOSES-EVOLVE .
+
+  sort MindAgent .
+  sort AgentQueue .
+  subsort MindAgent < AgentQueue .
+
+  op plnAgent : -> MindAgent [ctor] .
+  op ecanAgent : -> MindAgent [ctor] .
+  op mosesAgent : -> MindAgent [ctor] .
+  op patternMinerAgent : -> MindAgent [ctor] .
+  op customAgent : String -> MindAgent [ctor] .
+
+  op noAgents : -> AgentQueue [ctor] .
+  op _->_ : AgentQueue AgentQueue -> AgentQueue [ctor assoc id: noAgents] .
+
+  sort CogServerState .
+  op cogServer : AtomSpace AgentQueue URRuleBase Nat -> CogServerState [ctor] .
+
+  op csAS : CogServerState -> AtomSpace .
+  op csAgents : CogServerState -> AgentQueue .
+  op csRB : CogServerState -> URRuleBase .
+  op csCycle : CogServerState -> Nat .
+
+  var AS : AtomSpace .
+  var AQ : AgentQueue .
+  var RB : URRuleBase .
+  var N : Nat .
+  var MA : MindAgent .
+
+  eq csAS(cogServer(AS, AQ, RB, N)) = AS .
+  eq csAgents(cogServer(AS, AQ, RB, N)) = AQ .
+  eq csRB(cogServer(AS, AQ, RB, N)) = RB .
+  eq csCycle(cogServer(AS, AQ, RB, N)) = N .
+
+  *** Cognitive cycle: rotate agent queue
+  rl [cog-cycle] :
+      cogServer(AS, MA -> AQ, RB, N)
+    =>
+      cogServer(AS, AQ -> MA, RB, N + 1) .
+
+endm
+
+*** =================================================================
+*** PATTERN MATCHER
+*** =================================================================
+
+mod OC-PATTERN-MATCHER is
+  protecting OC-ATOM-SPACE-QUERY .
+
+  sort OcSubstitution .
+  sort OcSubBinding .
+  subsort OcSubBinding < OcSubstitution .
+
+  op emptySub : -> OcSubstitution [ctor] .
+  op _|->_ : VariableNode OcAtom -> OcSubBinding [ctor] .
+  op _+_ : OcSubstitution OcSubstitution -> OcSubstitution [ctor assoc comm id: emptySub] .
+
+  sort MatchResult .
+  op noMatch : -> MatchResult [ctor] .
+  op matchOk : OcSubstitution -> MatchResult [ctor] .
+
+  *** Apply substitution
+  op applySubst : OcAtom OcSubstitution -> OcAtom .
+
+  var V : VariableNode .
+  var A A1 A2 : OcAtom .
+  var Sub : OcSubstitution .
+  var S : String .
+
+  eq applySubst(V, (V |-> A) + Sub) = A .
+  eq applySubst(V, Sub) = V [owise] .
+  
+  eq applySubst(inheritance(A1, A2), Sub) = 
+     inheritance(applySubst(A1, Sub), applySubst(A2, Sub)) .
+  eq applySubst(implication(A1, A2), Sub) = 
+     implication(applySubst(A1, Sub), applySubst(A2, Sub)) .
+  eq applySubst(similarity(A1, A2), Sub) = 
+     similarity(applySubst(A1, Sub), applySubst(A2, Sub)) .
+  eq applySubst(member(A1, A2), Sub) = 
+     member(applySubst(A1, Sub), applySubst(A2, Sub)) .
+  
+  eq applySubst(concept(S), Sub) = concept(S) .
+  eq applySubst(predicate(S), Sub) = predicate(S) .
+  eq applySubst(number(S), Sub) = number(S) .
+  eq applySubst(schema(S), Sub) = schema(S) .
+
+endm
+
+*** =================================================================
+*** OPENCOG: Top-level integration module
+*** =================================================================
+
+mod OPENCOG is
+  protecting OC-COG-SERVER .
+  protecting OC-PATTERN-MATCHER .
+
+  op defaultPLNRuleBase : -> URRuleBase .
+  
+  eq defaultPLNRuleBase =
+     urRule("deduction", 1.0, "pln-deduction") ;;
+     urRule("modus-ponens", 0.8, "pln-modus-ponens") ;;
+     urRule("induction", 0.5, "pln-induction") ;;
+     urRule("abduction", 0.5, "pln-abduction") ;;
+     urRule("revision", 0.9, "pln-revision") ;;
+     urRule("and-intro", 0.3, "pln-and-intro") ;;
+     urRule("or-intro", 0.3, "pln-or-intro") ;;
+     urRule("not-intro", 0.3, "pln-not-intro") ;;
+     urRule("sim2inh", 0.4, "pln-sim2inh") ;;
+     urRule("inh2member", 0.4, "pln-inh2member") .
+
+  op newCogServer : AtomSpace -> CogServerState .
+  var AS : AtomSpace .
+  
+  eq newCogServer(AS) = 
+     cogServer(AS,
+               plnAgent -> ecanAgent -> mosesAgent,
+               defaultPLNRuleBase,
+               0) .
+
+endm
