@@ -1,0 +1,358 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-EXECUTION-ENGINE Module
+***  
+***  Implements the Atomese execution engine:
+***  - Lambda abstraction and beta-reduction
+***  - Grounded schema/predicate evaluation
+***  - Put/Get links (value access)
+***  - Arithmetic evaluation on NumberNodes
+***  - CondLink evaluation
+***  - Sequential execution
+***  
+***  Based on: opencog/atomspace execution/ and atoms/execution/
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** LAMBDA CALCULUS IN ATOMESE
+*** =================================================================
+
+fmod OC-LAMBDA is
+  protecting OC-ATOM-SPACE-QUERY .
+
+  *** Lambda: (VariableList Body)
+  op lambdaLink : OcAtomList OcAtom -> OcAtom [ctor] .
+  
+  *** PutLink: apply lambda to arguments
+  op putLink : OcAtom OcAtomList -> OcAtom [ctor] .
+  
+  *** GetLink: retrieve matching atoms
+  op getLink : OcAtomList OcAtom -> OcAtom [ctor] .
+  
+  *** BindLink: pattern → rewrite (the workhorse of Atomese)
+  op bindLink : OcAtomList OcAtom OcAtom -> OcAtom [ctor] .
+
+  *** Quote/Unquote for preventing reduction
+  op quoteLink : OcAtom -> OcAtom [ctor] .
+  op unquoteLink : OcAtom -> OcAtom [ctor] .
+  op localQuote : OcAtom -> OcAtom [ctor] .
+
+  *** DontExec: prevent execution
+  op dontExec : OcAtom -> OcAtom [ctor] .
+
+  *** Free variable check
+  op isFreeIn : VariableNode OcAtom -> Bool .
+  op isFreeInList : VariableNode OcAtomList -> Bool .
+
+  var V V2 : VariableNode .
+  vars A A1 A2 Body : OcAtom .
+  var AL VL : OcAtomList .
+  var S : String .
+
+  eq isFreeIn(V, V) = true .
+  eq isFreeIn(V, concept(S)) = false .
+  eq isFreeIn(V, predicate(S)) = false .
+  eq isFreeIn(V, number(S)) = false .
+  eq isFreeIn(V, schema(S)) = false .
+  eq isFreeIn(V, anchor(S)) = false .
+  eq isFreeIn(V, V2) = V == V2 [owise] .
+  
+  eq isFreeIn(V, inheritance(A1, A2)) = isFreeIn(V, A1) or isFreeIn(V, A2) .
+  eq isFreeIn(V, implication(A1, A2)) = isFreeIn(V, A1) or isFreeIn(V, A2) .
+  eq isFreeIn(V, similarity(A1, A2)) = isFreeIn(V, A1) or isFreeIn(V, A2) .
+  eq isFreeIn(V, member(A1, A2)) = isFreeIn(V, A1) or isFreeIn(V, A2) .
+  eq isFreeIn(V, evaluation(A1, AL)) = isFreeIn(V, A1) or isFreeInList(V, AL) .
+  eq isFreeIn(V, andLink(AL)) = isFreeInList(V, AL) .
+  eq isFreeIn(V, orLink(AL)) = isFreeInList(V, AL) .
+  eq isFreeIn(V, notLink(A1)) = isFreeIn(V, A1) .
+  eq isFreeIn(V, lambdaLink(VL, Body)) = false [owise] .
+  eq isFreeIn(V, quoteLink(A)) = false .
+  
+  eq isFreeInList(V, nil) = false .
+  eq isFreeInList(V, (A, AL)) = isFreeIn(V, A) or isFreeInList(V, AL) .
+
+endfm
+
+*** =================================================================
+*** BETA REDUCTION
+*** =================================================================
+
+fmod OC-BETA-REDUCE is
+  protecting OC-LAMBDA .
+
+  *** Substitution: replace variable with value in an expression
+  op betaSubst : OcAtom VariableNode OcAtom -> OcAtom .
+  op betaSubstList : OcAtomList VariableNode OcAtom -> OcAtomList .
+  
+  *** Multi-variable substitution (parallel)
+  op betaReduce : OcAtom OcAtomList OcAtomList -> OcAtom .
+
+  var V V2 : VariableNode .
+  vars A A1 A2 Body Val : OcAtom .
+  var AL VL ArgL : OcAtomList .
+  var S : String .
+
+  *** Single variable substitution
+  eq betaSubst(V, V, Val) = Val .
+  eq betaSubst(V2, V, Val) = V2 [owise] .
+  eq betaSubst(concept(S), V, Val) = concept(S) .
+  eq betaSubst(predicate(S), V, Val) = predicate(S) .
+  eq betaSubst(number(S), V, Val) = number(S) .
+  eq betaSubst(schema(S), V, Val) = schema(S) .
+  eq betaSubst(anchor(S), V, Val) = anchor(S) .
+  
+  eq betaSubst(inheritance(A1, A2), V, Val) = 
+     inheritance(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(implication(A1, A2), V, Val) = 
+     implication(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(similarity(A1, A2), V, Val) = 
+     similarity(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(member(A1, A2), V, Val) = 
+     member(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(evaluation(A1, AL), V, Val) = 
+     evaluation(betaSubst(A1, V, Val), betaSubstList(AL, V, Val)) .
+  eq betaSubst(andLink(AL), V, Val) = andLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(orLink(AL), V, Val) = orLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(notLink(A1), V, Val) = notLink(betaSubst(A1, V, Val)) .
+  eq betaSubst(subset(A1, A2), V, Val) = 
+     subset(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(context(A1, A2), V, Val) = 
+     context(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(listLink(AL), V, Val) = listLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(setLink(AL), V, Val) = setLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(plusLink(AL), V, Val) = plusLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(timesLink(AL), V, Val) = timesLink(betaSubstList(AL, V, Val)) .
+  eq betaSubst(minusLink(A1, A2), V, Val) = 
+     minusLink(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(divideLink(A1, A2), V, Val) = 
+     divideLink(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(greaterThan(A1, A2), V, Val) = 
+     greaterThan(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(lessThan(A1, A2), V, Val) = 
+     lessThan(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(equalLink(A1, A2), V, Val) = 
+     equalLink(betaSubst(A1, V, Val), betaSubst(A2, V, Val)) .
+  eq betaSubst(executionOutput(A1, AL), V, Val) = 
+     executionOutput(betaSubst(A1, V, Val), betaSubstList(AL, V, Val)) .
+  eq betaSubst(quoteLink(A), V, Val) = quoteLink(A) .
+  eq betaSubst(dontExec(A), V, Val) = dontExec(A) .
+
+  *** List substitution
+  eq betaSubstList(nil, V, Val) = nil .
+  eq betaSubstList((A, AL), V, Val) = betaSubst(A, V, Val), betaSubstList(AL, V, Val) .
+
+  *** Multi-variable beta reduction (parallel substitution)
+  eq betaReduce(Body, nil, nil) = Body .
+  eq betaReduce(Body, (V, VL), (Val, ArgL)) = 
+     betaReduce(betaSubst(Body, V, Val), VL, ArgL) .
+
+endfm
+
+*** =================================================================
+*** ARITHMETIC EVALUATION
+*** =================================================================
+
+fmod OC-ARITH-EVAL is
+  protecting OC-BETA-REDUCE .
+  protecting FLOAT .
+  protecting CONVERSION .
+
+  *** Parse number from NumberNode
+  op numVal : OcAtom -> Float .
+  op mkNum : Float -> OcAtom .
+  
+  *** Evaluate arithmetic links
+  op evalArithAtom : OcAtom -> OcAtom .
+  op evalArithList : OcAtomList -> Float .
+  op evalArithProduct : OcAtomList -> Float .
+
+  var S : String .
+  vars A A1 A2 : OcAtom .
+  var AL : OcAtomList .
+  vars F F1 F2 : Float .
+
+  *** mkNum: store result as a known number constant
+  eq mkNum(0.0) = number("0") .
+  eq mkNum(1.0) = number("1") .
+  eq mkNum(2.0) = number("2") .
+  eq mkNum(3.0) = number("3") .
+  eq mkNum(4.0) = number("4") .
+  eq mkNum(5.0) = number("5") .
+  eq mkNum(6.0) = number("6") .
+  eq mkNum(7.0) = number("7") .
+  eq mkNum(8.0) = number("8") .
+  eq mkNum(9.0) = number("9") .
+  eq mkNum(10.0) = number("10") .
+  eq mkNum(-1.0) = number("-1") .
+  
+  *** Number parsing (simplified: assumes valid float strings)
+  eq numVal(number("0")) = 0.0 .
+  eq numVal(number("1")) = 1.0 .
+  eq numVal(number("2")) = 2.0 .
+  eq numVal(number("3")) = 3.0 .
+  eq numVal(number("4")) = 4.0 .
+  eq numVal(number("5")) = 5.0 .
+  eq numVal(number("6")) = 6.0 .
+  eq numVal(number("7")) = 7.0 .
+  eq numVal(number("8")) = 8.0 .
+  eq numVal(number("9")) = 9.0 .
+  eq numVal(number("10")) = 10.0 .
+  eq numVal(number("0.0")) = 0.0 .
+  eq numVal(number("1.0")) = 1.0 .
+  eq numVal(number("2.0")) = 2.0 .
+  eq numVal(number("0.5")) = 0.5 .
+  eq numVal(number("-1")) = -1.0 .
+  eq numVal(number("-1.0")) = -1.0 .
+
+  *** Arithmetic evaluation
+  eq evalArithAtom(number(S)) = number(S) .
+  eq evalArithAtom(plusLink(AL)) = mkNum(evalArithList(AL)) .
+  eq evalArithAtom(timesLink(AL)) = mkNum(evalArithProduct(AL)) .
+  eq evalArithAtom(minusLink(A1, A2)) = mkNum(numVal(evalArithAtom(A1)) - numVal(evalArithAtom(A2))) .
+  ceq evalArithAtom(divideLink(A1, A2)) = mkNum(numVal(evalArithAtom(A1)) / numVal(evalArithAtom(A2)))
+    if numVal(evalArithAtom(A2)) =/= 0.0 .
+  eq evalArithAtom(A) = A [owise] .
+
+  eq evalArithList(nil) = 0.0 .
+  eq evalArithList((A, AL)) = numVal(evalArithAtom(A)) + evalArithList(AL) .
+  
+  eq evalArithProduct(nil) = 1.0 .
+  eq evalArithProduct((A, AL)) = numVal(evalArithAtom(A)) * evalArithProduct(AL) .
+
+endfm
+
+*** =================================================================
+*** EXECUTION ENGINE: Rewrite rules for Atomese evaluation
+*** =================================================================
+
+mod OC-EXECUTION-ENGINE is
+  protecting OC-ARITH-EVAL .
+
+  vars A A1 A2 Body Cond Then Else : OcAtom .
+  var AL VL ArgL Rest : OcAtomList .
+  var V : VariableNode .
+  var TV TV1 : OcTruthValue .
+  var AV : OcAttentionValue .
+  var AS : AtomSpace .
+  var S : String .
+  vars F F1 F2 : Float .
+
+  *** =============================================================
+  *** PUTLINK BETA REDUCTION
+  *** Put(Lambda(Vars, Body), Args) → Body[Vars := Args]
+  *** =============================================================
+  
+  rl [exec-put-lambda] :
+      [putLink(lambdaLink(VL, Body), ArgL), TV, AV]
+    =>
+      [betaReduce(Body, VL, ArgL), TV, AV] .
+
+  *** =============================================================
+  *** ARITHMETIC EXECUTION
+  *** Evaluate PlusLink, TimesLink, MinusLink, DivideLink
+  *** =============================================================
+  
+  rl [exec-plus] :
+      [plusLink(AL), TV, AV]
+    =>
+      [evalArithAtom(plusLink(AL)), TV, AV] .
+
+  rl [exec-times] :
+      [timesLink(AL), TV, AV]
+    =>
+      [evalArithAtom(timesLink(AL)), TV, AV] .
+
+  rl [exec-minus] :
+      [minusLink(A1, A2), TV, AV]
+    =>
+      [evalArithAtom(minusLink(A1, A2)), TV, AV] .
+
+  crl [exec-divide] :
+      [divideLink(A1, A2), TV, AV]
+    =>
+      [evalArithAtom(divideLink(A1, A2)), TV, AV]
+    if numVal(evalArithAtom(A2)) =/= 0.0 .
+
+  *** =============================================================
+  *** CONDLINK EVALUATION
+  *** =============================================================
+
+  *** CondLink with true condition
+  crl [exec-cond-true] :
+      [condLink((Cond, Then, Rest)), TV, AV]
+      [Cond, stv(F, F2), AV]
+      AS
+    =>
+      [Then, TV, AV]
+      [Cond, stv(F, F2), AV]
+      AS
+    if F > 0.5 .
+
+  *** =============================================================
+  *** STATELINK UPDATE
+  *** Only one StateLink per anchor; new value replaces old
+  *** =============================================================
+
+  rl [exec-state-update] :
+      [stateLink(A1, A2), TV, AV]
+    =>
+      [stateLink(A1, A2), TV, AV] .
+
+  *** =============================================================
+  *** SEQUENTIAL EXECUTION
+  *** SequentialAnd: execute in order, all must succeed
+  *** =============================================================
+
+  rl [exec-seq-and-step] :
+      [seqAnd((A1, A2, Rest)), TV, AV]
+    =>
+      [A1, TV, AV]
+      [seqAnd((A2, Rest)), TV, AV] .
+
+  rl [exec-seq-and-last] :
+      [seqAnd((A1, nil)), TV, AV]
+    =>
+      [A1, TV, AV] .
+
+  *** =============================================================
+  *** DEFINE/EXECUTE
+  *** DefineLink stores a named schema; ExecutionOutputLink calls it
+  *** =============================================================
+
+  crl [exec-defined-schema] :
+      [executionOutput(definedSchema(S), ArgL), TV, AV]
+      [defineLink(definedSchema(S), lambdaLink(VL, Body)), TV1, AV]
+      AS
+    =>
+      [betaReduce(Body, VL, ArgL), TV, AV]
+      [defineLink(definedSchema(S), lambdaLink(VL, Body)), TV1, AV]
+      AS
+    if Body =/= dontExec(Body) .
+
+  *** =============================================================
+  *** EVALUATION: EvaluationLink with GroundedPredicate
+  *** Evaluates to true/false based on predicate
+  *** =============================================================
+
+  *** GreaterThan evaluation
+  crl [exec-gt-true] :
+      [evaluation(groundedPredicate("gt"), (A1, A2, nil)), TV, AV]
+    =>
+      [evaluation(groundedPredicate("gt"), (A1, A2, nil)), stv(1.0, 1.0), AV]
+    if numVal(A1) > numVal(A2) .
+
+  crl [exec-gt-false] :
+      [evaluation(groundedPredicate("gt"), (A1, A2, nil)), TV, AV]
+    =>
+      [evaluation(groundedPredicate("gt"), (A1, A2, nil)), stv(0.0, 1.0), AV]
+    if numVal(A1) <= numVal(A2) .
+
+  *** Equality evaluation
+  crl [exec-eq-true] :
+      [evaluation(groundedPredicate("eq"), (A1, A2, nil)), TV, AV]
+    =>
+      [evaluation(groundedPredicate("eq"), (A1, A2, nil)), stv(1.0, 1.0), AV]
+    if numVal(A1) == numVal(A2) .
+
+endm

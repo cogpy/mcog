@@ -1,0 +1,317 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-META Module
+***  
+***  Meta-level reflection for the OpenCog system.
+***  
+***  Since Maude's META-LEVEL uses _,_ for TermList which conflicts
+***  with our OcAtomList _,_ operator, we implement meta-level
+***  capabilities without importing META-LEVEL directly. Instead we
+***  provide:
+***  
+***  - Type introspection (sort checking via equations)
+***  - Cognitive synergy (strategy selection and rotation)
+***  - Self-modification (dynamic type registry)
+***  - Inference monitoring (tracking rule applications)
+***  
+***  Based on: OpenCog SchemeEval/atomspace introspection API
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** TYPE INTROSPECTION
+*** =================================================================
+
+fmod OC-TYPE-INTROSPECT is
+  protecting OC-ATOM-SPACE-QUERY .
+  protecting STRING .
+
+  *** Get the type name of an atom as a string
+  op atomTypeName : OcAtom -> String .
+  
+  *** Type checking predicates
+  op isNodeType : OcAtom -> Bool .
+  op isLinkType : OcAtom -> Bool .
+  op isOrderedLink : OcAtom -> Bool .
+  op isUnorderedLink : OcAtom -> Bool .
+  op isEvaluatable : OcAtom -> Bool .
+
+  vars A A1 A2 : OcAtom .
+  var AL : OcAtomList .
+  var S : String .
+
+  *** Type names for nodes
+  eq atomTypeName(concept(S)) = "ConceptNode" .
+  eq atomTypeName(predicate(S)) = "PredicateNode" .
+  eq atomTypeName(number(S)) = "NumberNode" .
+  eq atomTypeName(schema(S)) = "SchemaNode" .
+  eq atomTypeName(variable(S)) = "VariableNode" .
+  eq atomTypeName(glob(S)) = "GlobNode" .
+  eq atomTypeName(anchor(S)) = "AnchorNode" .
+  eq atomTypeName(groundedSchema(S)) = "GroundedSchemaNode" .
+  eq atomTypeName(definedSchema(S)) = "DefinedSchemaNode" .
+  eq atomTypeName(groundedPredicate(S)) = "GroundedPredicateNode" .
+  eq atomTypeName(definedPredicate(S)) = "DefinedPredicateNode" .
+  eq atomTypeName(typeNode(S)) = "TypeNode" .
+  eq atomTypeName(booleanNode(S)) = "BooleanNode" .
+  eq atomTypeName(wordNode(S)) = "WordNode" .
+  
+  *** Type names for links
+  eq atomTypeName(inheritance(A1, A2)) = "InheritanceLink" .
+  eq atomTypeName(implication(A1, A2)) = "ImplicationLink" .
+  eq atomTypeName(equivalence(A1, A2)) = "EquivalenceLink" .
+  eq atomTypeName(similarity(A1, A2)) = "SimilarityLink" .
+  eq atomTypeName(member(A1, A2)) = "MemberLink" .
+  eq atomTypeName(subset(A1, A2)) = "SubsetLink" .
+  eq atomTypeName(evaluation(A1, AL)) = "EvaluationLink" .
+  eq atomTypeName(andLink(AL)) = "AndLink" .
+  eq atomTypeName(orLink(AL)) = "OrLink" .
+  eq atomTypeName(notLink(A1)) = "NotLink" .
+  eq atomTypeName(stateLink(A1, A2)) = "StateLink" .
+  eq atomTypeName(defineLink(A1, A2)) = "DefineLink" .
+  eq atomTypeName(asymHebbian(A1, A2)) = "AsymmetricHebbianLink" .
+  eq atomTypeName(symHebbian(A1, A2)) = "SymmetricHebbianLink" .
+
+  *** Node type check
+  eq isNodeType(concept(S)) = true .
+  eq isNodeType(predicate(S)) = true .
+  eq isNodeType(number(S)) = true .
+  eq isNodeType(schema(S)) = true .
+  eq isNodeType(variable(S)) = true .
+  eq isNodeType(anchor(S)) = true .
+  eq isNodeType(groundedSchema(S)) = true .
+  eq isNodeType(definedSchema(S)) = true .
+  eq isNodeType(groundedPredicate(S)) = true .
+  eq isNodeType(definedPredicate(S)) = true .
+  eq isNodeType(typeNode(S)) = true .
+  eq isNodeType(booleanNode(S)) = true .
+  eq isNodeType(wordNode(S)) = true .
+  eq isNodeType(A) = false [owise] .
+
+  *** Link type check
+  eq isLinkType(inheritance(A1, A2)) = true .
+  eq isLinkType(implication(A1, A2)) = true .
+  eq isLinkType(equivalence(A1, A2)) = true .
+  eq isLinkType(similarity(A1, A2)) = true .
+  eq isLinkType(member(A1, A2)) = true .
+  eq isLinkType(subset(A1, A2)) = true .
+  eq isLinkType(evaluation(A1, AL)) = true .
+  eq isLinkType(andLink(AL)) = true .
+  eq isLinkType(orLink(AL)) = true .
+  eq isLinkType(notLink(A1)) = true .
+  eq isLinkType(stateLink(A1, A2)) = true .
+  eq isLinkType(defineLink(A1, A2)) = true .
+  eq isLinkType(asymHebbian(A1, A2)) = true .
+  eq isLinkType(symHebbian(A1, A2)) = true .
+  eq isLinkType(A) = false [owise] .
+
+  *** Ordered vs Unordered
+  eq isOrderedLink(inheritance(A1, A2)) = true .
+  eq isOrderedLink(implication(A1, A2)) = true .
+  eq isOrderedLink(member(A1, A2)) = true .
+  eq isOrderedLink(subset(A1, A2)) = true .
+  eq isOrderedLink(A) = false [owise] .
+
+  eq isUnorderedLink(equivalence(A1, A2)) = true .
+  eq isUnorderedLink(similarity(A1, A2)) = true .
+  eq isUnorderedLink(symHebbian(A1, A2)) = true .
+  eq isUnorderedLink(A) = false [owise] .
+
+  *** Evaluatable check
+  eq isEvaluatable(evaluation(A1, AL)) = true .
+  eq isEvaluatable(andLink(AL)) = true .
+  eq isEvaluatable(orLink(AL)) = true .
+  eq isEvaluatable(notLink(A1)) = true .
+  eq isEvaluatable(A) = false [owise] .
+
+  *** Count atoms by type in AtomSpace
+  op countNodes : AtomSpace -> Nat .
+  op countLinks : AtomSpace -> Nat .
+  
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+  var AS : AtomSpace .
+
+  eq countNodes(emptyAS) = 0 .
+  eq countNodes([A, TV, AV] AS) = (if isNodeType(A) then 1 else 0 fi) + countNodes(AS) .
+  
+  eq countLinks(emptyAS) = 0 .
+  eq countLinks([A, TV, AV] AS) = (if isLinkType(A) then 1 else 0 fi) + countLinks(AS) .
+
+endfm
+
+*** =================================================================
+*** COGNITIVE SYNERGY: Meta-reasoning about inference strategies
+*** =================================================================
+
+fmod OC-COGNITIVE-SYNERGY is
+  protecting OC-TYPE-INTROSPECT .
+  protecting FLOAT .
+
+  *** Inference strategy: which rules to apply in what order
+  sort InferenceStrategy .
+  sort StrategyStep .
+  subsort StrategyStep < InferenceStrategy .
+  
+  op emptyStrat : -> InferenceStrategy [ctor] .
+  op step : String Float -> StrategyStep [ctor] .
+  op _>>>_ : InferenceStrategy InferenceStrategy -> InferenceStrategy [ctor assoc id: emptyStrat] .
+
+  *** Strategy step accessors
+  op stepName : StrategyStep -> String .
+  op stepWeight : StrategyStep -> Float .
+  var RN : String .
+  var RW : Float .
+  eq stepName(step(RN, RW)) = RN .
+  eq stepWeight(step(RN, RW)) = RW .
+
+  *** Strategy selection based on context
+  sort StrategySelector .
+  op stratSelector : OcAtom InferenceStrategy -> StrategySelector [ctor] .
+  
+  sort StrategySet .
+  subsort StrategySelector < StrategySet .
+  op emptySS : -> StrategySet [ctor] .
+  op _||_ : StrategySet StrategySet -> StrategySet [ctor assoc comm id: emptySS] .
+
+  *** Predefined strategies
+  op deductiveStrategy : -> InferenceStrategy .
+  op inductiveStrategy : -> InferenceStrategy .
+  op abductiveStrategy : -> InferenceStrategy .
+  op analogicalStrategy : -> InferenceStrategy .
+  op exploratoryStrategy : -> InferenceStrategy .
+
+  eq deductiveStrategy = 
+     step("deduction", 1.0) >>> step("modus-ponens", 0.8) >>> step("revision", 0.5) .
+  eq inductiveStrategy = 
+     step("induction", 1.0) >>> step("revision", 0.7) >>> step("and-intro", 0.3) .
+  eq abductiveStrategy = 
+     step("abduction", 1.0) >>> step("revision", 0.7) >>> step("sim2inh", 0.4) .
+  eq analogicalStrategy = 
+     step("sim2inh", 1.0) >>> step("deduction", 0.8) >>> step("induction", 0.5) .
+  eq exploratoryStrategy = 
+     step("deduction", 0.5) >>> step("induction", 0.5) >>> step("abduction", 0.5) >>>
+     step("modus-ponens", 0.5) >>> step("revision", 0.3) .
+
+  *** Strategy length
+  op stratLength : InferenceStrategy -> Nat .
+  var IS : InferenceStrategy .
+  var SS2 : StrategyStep .
+  eq stratLength(emptyStrat) = 0 .
+  eq stratLength(SS2 >>> IS) = 1 + stratLength(IS) .
+
+endfm
+
+*** =================================================================
+*** INFERENCE MONITOR: Track rule applications and performance
+*** =================================================================
+
+fmod OC-INFERENCE-MONITOR is
+  protecting OC-COGNITIVE-SYNERGY .
+
+  *** Rule application record
+  sort RuleAppRecord .
+  op ruleApp : String Nat Nat -> RuleAppRecord [ctor] .
+  
+  op rarName : RuleAppRecord -> String .
+  op rarSuccesses : RuleAppRecord -> Nat .
+  op rarAttempts : RuleAppRecord -> Nat .
+  
+  var RN : String .
+  vars NS NA : Nat .
+  
+  eq rarName(ruleApp(RN, NS, NA)) = RN .
+  eq rarSuccesses(ruleApp(RN, NS, NA)) = NS .
+  eq rarAttempts(ruleApp(RN, NS, NA)) = NA .
+
+  *** Record collection
+  sort AppRecordSet .
+  subsort RuleAppRecord < AppRecordSet .
+  op emptyARS : -> AppRecordSet [ctor] .
+  op _;;_ : AppRecordSet AppRecordSet -> AppRecordSet [ctor assoc comm id: emptyARS] .
+
+  protecting CONVERSION .
+
+  *** Success rate
+  op successRate : RuleAppRecord -> Float .
+  eq successRate(ruleApp(RN, NS, 0)) = 0.0 .
+  var NA2 : NzNat .
+  eq successRate(ruleApp(RN, NS, NA2)) = float(NS) / float(NA2) .
+
+  *** Update record
+  op recordSuccess : AppRecordSet String -> AppRecordSet .
+  op recordAttempt : AppRecordSet String -> AppRecordSet .
+  
+  var ARS : AppRecordSet .
+  var RAR : RuleAppRecord .
+  
+  eq recordSuccess(ruleApp(RN, NS, NA) ;; ARS, RN) = ruleApp(RN, NS + 1, NA + 1) ;; ARS .
+  eq recordSuccess(ARS, RN) = ruleApp(RN, 1, 1) ;; ARS [owise] .
+  
+  eq recordAttempt(ruleApp(RN, NS, NA) ;; ARS, RN) = ruleApp(RN, NS, NA + 1) ;; ARS .
+  eq recordAttempt(ARS, RN) = ruleApp(RN, 0, 1) ;; ARS [owise] .
+
+endfm
+
+*** =================================================================
+*** SELF-MODIFYING ATOMSPACE (Dynamic type creation)
+*** =================================================================
+
+mod OC-SELF-MODIFY is
+  protecting OC-INFERENCE-MONITOR .
+
+  *** Record of dynamically created types
+  sort DynType .
+  op dynType : String String -> DynType [ctor] .
+  
+  sort DynTypeRegistry .
+  subsort DynType < DynTypeRegistry .
+  op emptyDTR : -> DynTypeRegistry [ctor] .
+  op _;;_ : DynTypeRegistry DynTypeRegistry -> DynTypeRegistry [ctor assoc comm id: emptyDTR] .
+
+  *** Self-modification state
+  sort SelfModState .
+  op selfModState : AtomSpace DynTypeRegistry AppRecordSet Nat -> SelfModState [ctor] .
+
+  op smAS : SelfModState -> AtomSpace .
+  op smTypes : SelfModState -> DynTypeRegistry .
+  op smRecords : SelfModState -> AppRecordSet .
+  op smCycle : SelfModState -> Nat .
+
+  var AS : AtomSpace .
+  var DTR : DynTypeRegistry .
+  var ARS : AppRecordSet .
+  var N : Nat .
+  vars TypeName ParentType : String .
+  var A : OcAtom .
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+
+  eq smAS(selfModState(AS, DTR, ARS, N)) = AS .
+  eq smTypes(selfModState(AS, DTR, ARS, N)) = DTR .
+  eq smRecords(selfModState(AS, DTR, ARS, N)) = ARS .
+  eq smCycle(selfModState(AS, DTR, ARS, N)) = N .
+
+  *** Register a new dynamic type (recorded in registry)
+  rl [register-type] :
+      selfModState(
+        [defineLink(typeNode(TypeName), typeNode(ParentType)), TV, AV] AS,
+        DTR, ARS, N)
+    =>
+      selfModState(
+        [defineLink(typeNode(TypeName), typeNode(ParentType)), TV, AV] AS,
+        dynType(TypeName, ParentType) ;; DTR,
+        ARS, N + 1) .
+
+  *** Introspection: count registered types
+  op typeCount : DynTypeRegistry -> Nat .
+  var DT : DynType .
+  eq typeCount(emptyDTR) = 0 .
+  eq typeCount(DT ;; DTR) = 1 + typeCount(DTR) .
+
+  *** Has type been registered?
+  op hasType : DynTypeRegistry String -> Bool .
+  eq hasType(dynType(TypeName, ParentType) ;; DTR, TypeName) = true .
+  eq hasType(DTR, TypeName) = false [owise] .
+
+endm

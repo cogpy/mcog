@@ -1,0 +1,279 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-PATTERN-MINER Module
+***  
+***  Frequent subgraph pattern mining over the AtomSpace.
+***  
+***  Discovers frequently occurring subgraph patterns by:
+***  1. Generating candidate patterns (single-link seeds)
+***  2. Counting pattern support (number of groundings)
+***  3. Extending patterns by adding clauses
+***  4. Pruning infrequent patterns
+***  5. Computing surprisingness (I-Surprisingness)
+***  
+***  Based on: opencog/miner/
+*** ================================================================ )
+
+load pattern-matcher.maude
+
+*** =================================================================
+*** PATTERN REPRESENTATION
+*** =================================================================
+
+fmod OC-PATTERN-REP is
+  protecting OC-UNIFICATION .
+  protecting FLOAT .
+
+  *** A mined pattern with its support count and surprisingness
+  sort MinedPattern .
+  op minedPat : OcAtom Nat Float -> MinedPattern [ctor] .
+  
+  op mpPattern : MinedPattern -> OcAtom .
+  op mpSupport : MinedPattern -> Nat .
+  op mpSurprise : MinedPattern -> Float .
+
+  var P : OcAtom .
+  var N : Nat .
+  var F : Float .
+  
+  eq mpPattern(minedPat(P, N, F)) = P .
+  eq mpSupport(minedPat(P, N, F)) = N .
+  eq mpSurprise(minedPat(P, N, F)) = F .
+
+  *** Collection of mined patterns
+  sort PatternSet .
+  subsort MinedPattern < PatternSet .
+  op emptyPS : -> PatternSet [ctor] .
+  op _|_ : PatternSet PatternSet -> PatternSet [ctor assoc comm id: emptyPS] .
+
+  *** Pattern mining configuration
+  sort MinerConfig .
+  op minerConfig : Nat Nat Nat Float -> MinerConfig [ctor] .
+  
+  op minSupport : MinerConfig -> Nat .
+  op maxPatSize : MinerConfig -> Nat .
+  op maxPatterns : MinerConfig -> Nat .
+  op minSurprise : MinerConfig -> Float .
+
+  var MS MPS MPat : Nat .
+  var MSurp : Float .
+  
+  eq minSupport(minerConfig(MS, MPS, MPat, MSurp)) = MS .
+  eq maxPatSize(minerConfig(MS, MPS, MPat, MSurp)) = MPS .
+  eq maxPatterns(minerConfig(MS, MPS, MPat, MSurp)) = MPat .
+  eq minSurprise(minerConfig(MS, MPS, MPat, MSurp)) = MSurp .
+
+  op defaultMinerConfig : -> MinerConfig .
+  eq defaultMinerConfig = minerConfig(5, 4, 100, 0.1) .
+
+endfm
+
+*** =================================================================
+*** SUPPORT COUNTING
+*** =================================================================
+
+fmod OC-SUPPORT-COUNT is
+  protecting OC-PATTERN-REP .
+
+  *** Count how many atoms in the AtomSpace match a pattern
+  op countSupport : OcAtom AtomSpace -> Nat .
+  op countSupportAux : OcAtom AtomSpace Nat -> Nat .
+  
+  *** Check if an atom matches a pattern (is an instance)
+  op isInstance : OcAtom OcAtom -> Bool .
+
+  vars A Pat : OcAtom .
+  var AS : AtomSpace .
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+  var N : Nat .
+  var Sub : Substitution .
+
+  eq countSupport(Pat, AS) = countSupportAux(Pat, AS, 0) .
+  
+  eq countSupportAux(Pat, emptyAS, N) = N .
+  eq countSupportAux(Pat, [A, TV, AV] AS, N) = 
+     if isInstance(Pat, A) 
+     then countSupportAux(Pat, AS, N + 1)
+     else countSupportAux(Pat, AS, N) 
+     fi .
+
+  *** An atom is an instance of a pattern if unification succeeds
+  eq isInstance(Pat, A) = unify(Pat, A) =/= unifyFail .
+
+endfm
+
+*** =================================================================
+*** PATTERN GENERATION
+*** =================================================================
+
+fmod OC-PATTERN-GEN is
+  protecting OC-SUPPORT-COUNT .
+
+  *** Generate seed patterns from the AtomSpace
+  *** A seed pattern is a single link with variables
+  op genInhSeed : -> OcAtom .
+  op genImplSeed : -> OcAtom .
+  op genMemberSeed : -> OcAtom .
+  op genEvalSeed : -> OcAtom .
+  op genSimSeed : -> OcAtom .
+
+  *** Specialized seeds with one variable
+  op genInhSeedFrom : OcAtom -> OcAtom .
+  op genInhSeedTo : OcAtom -> OcAtom .
+
+  var A : OcAtom .
+
+  *** Fully abstract seeds (two variables)
+  eq genInhSeed = inheritance(variable("$X"), variable("$Y")) .
+  eq genImplSeed = implication(variable("$X"), variable("$Y")) .
+  eq genMemberSeed = member(variable("$X"), variable("$Y")) .
+  eq genEvalSeed = evaluation(variable("$P"), (variable("$X"), nil)) .
+  eq genSimSeed = similarity(variable("$X"), variable("$Y")) .
+  
+  *** Semi-abstract seeds (one variable fixed)
+  eq genInhSeedFrom(A) = inheritance(A, variable("$Y")) .
+  eq genInhSeedTo(A) = inheritance(variable("$X"), A) .
+
+  *** Pattern conjunction: extend a pattern with another clause
+  op extendPattern : OcAtom OcAtom -> OcAtom .
+  eq extendPattern(A, Pat) = andLink((A, Pat, nil)) .
+
+  *** Pattern size (number of clauses)
+  op patSize : OcAtom -> Nat .
+  var AL : OcAtomList .
+  eq patSize(andLink(AL)) = listLen(AL) .
+  eq patSize(A) = 1 [owise] .
+  
+  op listLen : OcAtomList -> Nat .
+  eq listLen(nil) = 0 .
+  eq listLen((A, AL)) = 1 + listLen(AL) .
+
+endfm
+
+*** =================================================================
+*** SURPRISINGNESS MEASURES
+*** =================================================================
+
+fmod OC-SURPRISINGNESS is
+  protecting OC-PATTERN-GEN .
+  protecting FLOAT .
+
+  *** I-Surprisingness: how much more frequent is the pattern
+  *** than expected by independence assumption
+  op iSurprise : Nat Nat Nat -> Float .
+  
+  *** Normalized surprisingness
+  op normSurprise : Float Nat -> Float .
+
+  vars Support N Total : Nat .
+  var F : Float .
+
+  *** I-Surprisingness = |observed - expected| / max(observed, expected)
+  *** Simplified: surprise = support / total (relative frequency)
+  ceq iSurprise(Support, N, Total) = 
+      float(Support) / float(Total)
+    if Total > 0 .
+  eq iSurprise(Support, N, 0) = 0.0 .
+
+  eq normSurprise(F, N) = F * float(N) .
+
+endfm
+
+*** =================================================================
+*** PATTERN MINING ENGINE
+*** =================================================================
+
+mod OC-PATTERN-MINER is
+  protecting OC-SURPRISINGNESS .
+
+  sort MinerState .
+  op minerState : AtomSpace PatternSet MinerConfig Nat -> MinerState [ctor] .
+
+  op msAS : MinerState -> AtomSpace .
+  op msPatterns : MinerState -> PatternSet .
+  op msConfig : MinerState -> MinerConfig .
+  op msIter : MinerState -> Nat .
+
+  var AS : AtomSpace .
+  var PS : PatternSet .
+  var MC : MinerConfig .
+  var N Sup Total : Nat .
+  vars A Pat NewPat : OcAtom .
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+  var MP : MinedPattern .
+  var F : Float .
+
+  eq msAS(minerState(AS, PS, MC, N)) = AS .
+  eq msPatterns(minerState(AS, PS, MC, N)) = PS .
+  eq msConfig(minerState(AS, PS, MC, N)) = MC .
+  eq msIter(minerState(AS, PS, MC, N)) = N .
+
+  *** =============================================================
+  *** MINING RULES
+  *** =============================================================
+
+  *** Mine inheritance patterns
+  crl [mine-inh-pattern] :
+      minerState(
+        [inheritance(A, Pat), TV, AV]
+        AS,
+        PS,
+        MC,
+        N)
+    =>
+      minerState(
+        [inheritance(A, Pat), TV, AV]
+        AS,
+        PS | minedPat(genInhSeedTo(Pat), Sup, F),
+        MC,
+        N + 1)
+    if Sup := countSupport(genInhSeedTo(Pat), [inheritance(A, Pat), TV, AV] AS)
+    /\ Sup >= minSupport(MC)
+    /\ Total := ocSize([inheritance(A, Pat), TV, AV] AS)
+    /\ F := iSurprise(Sup, 1, Total)
+    /\ F >= minSurprise(MC) .
+
+  *** Mine implication patterns
+  crl [mine-impl-pattern] :
+      minerState(
+        [implication(A, Pat), TV, AV]
+        AS,
+        PS,
+        MC,
+        N)
+    =>
+      minerState(
+        [implication(A, Pat), TV, AV]
+        AS,
+        PS | minedPat(implication(variable("$X"), Pat), Sup, F),
+        MC,
+        N + 1)
+    if Sup := countSupport(implication(variable("$X"), Pat), [implication(A, Pat), TV, AV] AS)
+    /\ Sup >= minSupport(MC)
+    /\ Total := ocSize([implication(A, Pat), TV, AV] AS)
+    /\ F := iSurprise(Sup, 1, Total)
+    /\ F >= minSurprise(MC) .
+
+  *** Mine member patterns
+  crl [mine-member-pattern] :
+      minerState(
+        [member(A, Pat), TV, AV]
+        AS,
+        PS,
+        MC,
+        N)
+    =>
+      minerState(
+        [member(A, Pat), TV, AV]
+        AS,
+        PS | minedPat(member(variable("$X"), Pat), Sup, F),
+        MC,
+        N + 1)
+    if Sup := countSupport(member(variable("$X"), Pat), [member(A, Pat), TV, AV] AS)
+    /\ Sup >= minSupport(MC)
+    /\ Total := ocSize([member(A, Pat), TV, AV] AS)
+    /\ F := iSurprise(Sup, 1, Total)
+    /\ F >= minSurprise(MC) .
+
+endm

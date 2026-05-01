@@ -1,0 +1,325 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-SPACETIME Module
+***  
+***  Implements temporal and spatial reasoning:
+***  - Allen's interval algebra (13 relations)
+***  - TimeServer: temporal annotation of atoms
+***  - Temporal inference rules
+***  - Spatial maps and regions
+***  - AtTimeLink / TimeNode representation
+***  
+***  Based on: opencog/spacetime/ and opencog/timeoctomap/
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** ALLEN'S INTERVAL ALGEBRA
+*** =================================================================
+
+fmod OC-ALLEN-INTERVALS is
+  protecting INT .
+  protecting BOOL .
+
+  *** Time points and intervals
+  sort TimePoint .
+  sort TimeInterval .
+  
+  op tp : Int -> TimePoint [ctor] .
+  op interval : TimePoint TimePoint -> TimeInterval [ctor] .
+  
+  *** Accessors
+  op start : TimeInterval -> TimePoint .
+  op end : TimeInterval -> TimePoint .
+  op tpVal : TimePoint -> Int .
+  
+  var T T1 T2 : Int .
+  
+  eq start(interval(tp(T1), tp(T2))) = tp(T1) .
+  eq end(interval(tp(T1), tp(T2))) = tp(T2) .
+  eq tpVal(tp(T)) = T .
+
+  *** Duration
+  op duration : TimeInterval -> Int .
+  eq duration(interval(tp(T1), tp(T2))) = T2 - T1 .
+
+  *** Allen's 13 interval relations
+  sort AllenRelation .
+  ops before after meets metBy overlaps overlappedBy : -> AllenRelation [ctor] .
+  ops starts startedBy during contains finishes finishedBy : -> AllenRelation [ctor] .
+  op equals : -> AllenRelation [ctor] .
+
+  *** Compute the Allen relation between two intervals
+  op allenRelation : TimeInterval TimeInterval -> AllenRelation .
+  
+  vars S1 E1 S2 E2 : Int .
+
+  *** Before: I1 entirely before I2 (gap between)
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = before
+    if E1 < S2 .
+  
+  *** After: I1 entirely after I2
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = after
+    if S1 > E2 .
+  
+  *** Meets: I1 ends exactly where I2 starts
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = meets
+    if E1 == S2 .
+  
+  *** MetBy: I1 starts exactly where I2 ends
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = metBy
+    if S1 == E2 .
+  
+  *** Overlaps: I1 starts before I2, ends during I2
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = overlaps
+    if S1 < S2 /\ E1 > S2 /\ E1 < E2 .
+  
+  *** OverlappedBy: I2 starts before I1, ends during I1
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = overlappedBy
+    if S2 < S1 /\ E2 > S1 /\ E2 < E1 .
+  
+  *** Starts: I1 starts with I2 but ends earlier
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = starts
+    if S1 == S2 /\ E1 < E2 .
+  
+  *** StartedBy: I2 starts with I1 but ends earlier
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = startedBy
+    if S1 == S2 /\ E1 > E2 .
+  
+  *** During: I1 entirely within I2
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = during
+    if S1 > S2 /\ E1 < E2 .
+  
+  *** Contains: I2 entirely within I1
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = contains
+    if S1 < S2 /\ E1 > E2 .
+  
+  *** Finishes: I1 ends with I2 but starts later
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = finishes
+    if E1 == E2 /\ S1 > S2 .
+  
+  *** FinishedBy: I2 ends with I1 but starts later
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = finishedBy
+    if E1 == E2 /\ S1 < S2 .
+  
+  *** Equals: identical intervals
+  ceq allenRelation(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = equals
+    if S1 == S2 /\ E1 == E2 .
+
+  *** Inverse relation
+  op allenInverse : AllenRelation -> AllenRelation .
+  eq allenInverse(before) = after .
+  eq allenInverse(after) = before .
+  eq allenInverse(meets) = metBy .
+  eq allenInverse(metBy) = meets .
+  eq allenInverse(overlaps) = overlappedBy .
+  eq allenInverse(overlappedBy) = overlaps .
+  eq allenInverse(starts) = startedBy .
+  eq allenInverse(startedBy) = starts .
+  eq allenInverse(during) = contains .
+  eq allenInverse(contains) = during .
+  eq allenInverse(finishes) = finishedBy .
+  eq allenInverse(finishedBy) = finishes .
+  eq allenInverse(equals) = equals .
+
+  *** Interval operations
+  op intersect : TimeInterval TimeInterval -> TimeInterval .
+  op hull : TimeInterval TimeInterval -> TimeInterval .
+  
+  op maxTP : TimePoint TimePoint -> TimePoint .
+  op minTP : TimePoint TimePoint -> TimePoint .
+  
+  eq maxTP(tp(T1), tp(T2)) = if T1 >= T2 then tp(T1) else tp(T2) fi .
+  eq minTP(tp(T1), tp(T2)) = if T1 <= T2 then tp(T1) else tp(T2) fi .
+  
+  eq intersect(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = 
+     interval(maxTP(tp(S1), tp(S2)), minTP(tp(E1), tp(E2))) .
+  eq hull(interval(tp(S1), tp(E1)), interval(tp(S2), tp(E2))) = 
+     interval(minTP(tp(S1), tp(S2)), maxTP(tp(E1), tp(E2))) .
+
+endfm
+
+*** =================================================================
+*** TIME SERVER: Temporal annotation of atoms
+*** =================================================================
+
+fmod OC-TIME-SERVER is
+  protecting OC-ALLEN-INTERVALS .
+  protecting OC-ATOM-SPACE .
+
+  *** TimeNode: represents a point or interval in time
+  sort TimeNode .
+  subsort TimeNode < OcNode .
+  
+  op timeNode : Int -> TimeNode [ctor] .
+  op timeIntervalNode : Int Int -> TimeNode [ctor] .
+
+  *** AtTimeLink: associates an atom with a time
+  op atTimeLink : OcAtom TimeNode -> OcAtom [ctor] .
+
+  *** Temporal entry: atom annotated with temporal interval
+  sort TemporalEntry .
+  op tempEntry : OcAtom TimeInterval -> TemporalEntry [ctor] .
+  
+  sort TemporalMap .
+  subsort TemporalEntry < TemporalMap .
+  op emptyTM : -> TemporalMap [ctor] .
+  op _;;_ : TemporalMap TemporalMap -> TemporalMap [ctor assoc comm id: emptyTM] .
+
+  *** TimeServer state
+  sort TimeServer .
+  op timeServer : TemporalMap Int -> TimeServer [ctor] .
+  
+  op tsMap : TimeServer -> TemporalMap .
+  op tsNow : TimeServer -> Int .
+  
+  var TM : TemporalMap .
+  var Now : Int .
+  
+  eq tsMap(timeServer(TM, Now)) = TM .
+  eq tsNow(timeServer(TM, Now)) = Now .
+
+  *** Operations
+  op addTemporal : TimeServer OcAtom TimeInterval -> TimeServer .
+  op getInterval : TimeServer OcAtom -> TimeInterval .
+  op advanceTime : TimeServer Int -> TimeServer .
+  op temporalQuery : TimeServer AllenRelation TimeInterval -> TemporalMap .
+
+  var TS : TimeServer .
+  var A A2 : OcAtom .
+  var TI TI2 : TimeInterval .
+  var TE : TemporalEntry .
+  var AR : AllenRelation .
+
+  eq addTemporal(timeServer(TM, Now), A, TI) = 
+     timeServer(tempEntry(A, TI) ;; TM, Now) .
+  
+  eq getInterval(timeServer(tempEntry(A, TI) ;; TM, Now), A) = TI .
+  
+  eq advanceTime(timeServer(TM, Now), Now) = timeServer(TM, Now) [owise] .
+
+  *** Query: find all atoms with a given Allen relation to a reference interval
+  eq temporalQuery(timeServer(emptyTM, Now), AR, TI) = emptyTM .
+  eq temporalQuery(timeServer(tempEntry(A, TI2) ;; TM, Now), AR, TI) = 
+     if allenRelation(TI2, TI) == AR 
+     then tempEntry(A, TI2) ;; temporalQuery(timeServer(TM, Now), AR, TI)
+     else temporalQuery(timeServer(TM, Now), AR, TI)
+     fi .
+
+endfm
+
+*** =================================================================
+*** SPATIAL REASONING
+*** =================================================================
+
+fmod OC-SPATIAL is
+  protecting OC-ATOM-SPACE .
+  protecting FLOAT .
+
+  *** 3D Point
+  sort Point3D .
+  op point3d : Float Float Float -> Point3D [ctor] .
+  
+  op getX : Point3D -> Float .
+  op getY : Point3D -> Float .
+  op getZ : Point3D -> Float .
+  
+  var X Y Z X2 Y2 Z2 : Float .
+  
+  eq getX(point3d(X, Y, Z)) = X .
+  eq getY(point3d(X, Y, Z)) = Y .
+  eq getZ(point3d(X, Y, Z)) = Z .
+
+  *** Bounding box
+  sort BoundingBox .
+  op bbox : Point3D Point3D -> BoundingBox [ctor] .
+  
+  op bboxMin : BoundingBox -> Point3D .
+  op bboxMax : BoundingBox -> Point3D .
+  
+  var P1 P2 : Point3D .
+  eq bboxMin(bbox(P1, P2)) = P1 .
+  eq bboxMax(bbox(P1, P2)) = P2 .
+
+  *** Spatial entry: atom at a position
+  sort SpatialEntry .
+  op spatEntry : OcAtom Point3D -> SpatialEntry [ctor] .
+  
+  sort SpatialMap .
+  subsort SpatialEntry < SpatialMap .
+  op emptySM : -> SpatialMap [ctor] .
+  op _;;_ : SpatialMap SpatialMap -> SpatialMap [ctor assoc comm id: emptySM] .
+
+  *** Distance calculation (Euclidean)
+  op distance : Point3D Point3D -> Float .
+  eq distance(point3d(X, Y, Z), point3d(X2, Y2, Z2)) = 
+     sqrt((X - X2) * (X - X2) + (Y - Y2) * (Y - Y2) + (Z - Z2) * (Z - Z2)) .
+
+  *** Spatial predicates
+  op isNear : Point3D Point3D Float -> Bool .
+  eq isNear(P1, P2, X) = distance(P1, P2) < X .
+
+  *** Point in bounding box
+  op inBBox : Point3D BoundingBox -> Bool .
+  eq inBBox(point3d(X, Y, Z), bbox(point3d(X2, Y2, Z2), point3d(X, Y, Z))) = true [owise] .
+  ceq inBBox(point3d(X, Y, Z), bbox(point3d(X2, Y2, Z2), point3d(X, Y, Z))) = true
+    if X >= X2 /\ Y >= Y2 /\ Z >= Z2 .
+  eq inBBox(P1, bbox(P1, P2)) = false [owise] .
+
+endfm
+
+*** =================================================================
+*** TEMPORAL INFERENCE RULES
+*** =================================================================
+
+mod OC-TEMPORAL-REASONING is
+  protecting OC-TIME-SERVER .
+  protecting OC-SPATIAL .
+
+  vars A B C : OcAtom .
+  var TV TV1 TV2 : OcTruthValue .
+  var AV : OcAttentionValue .
+  var AS : AtomSpace .
+  vars S1 E1 S2 E2 S3 E3 : Int .
+
+  *** Temporal deduction: if A before B, and B before C, then A before C
+  crl [temporal-deduction] :
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV1, AV]
+      [atTimeLink(C, timeIntervalNode(S3, E3)), TV2, AV]
+      AS
+    =>
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV1, AV]
+      [atTimeLink(C, timeIntervalNode(S3, E3)), TV2, AV]
+      [implication(A, C), stv(0.8, 0.5), AV]
+      AS
+    if E1 < S2 /\ E2 < S3 .
+
+  *** Temporal overlap → possible causal relation
+  crl [temporal-overlap-cause] :
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV2, AV]
+      [implication(A, B), TV, AV]
+      AS
+    =>
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV2, AV]
+      [implication(A, B), TV, AV]
+      [attraction(A, B), stv(0.7, 0.4), AV]
+      AS
+    if S1 < S2 /\ E1 > S2 /\ E1 < E2 .
+
+  *** Simultaneous events → possible correlation
+  crl [temporal-simultaneous] :
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV2, AV]
+      AS
+    =>
+      [atTimeLink(A, timeIntervalNode(S1, E1)), TV1, AV]
+      [atTimeLink(B, timeIntervalNode(S2, E2)), TV2, AV]
+      [similarity(A, B), stv(0.5, 0.3), AV]
+      AS
+    if S1 == S2 /\ E1 == E2 /\ A =/= B .
+
+endm

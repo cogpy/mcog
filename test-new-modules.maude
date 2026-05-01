@@ -1,0 +1,351 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Test Suite for New Modules
+***  Tests: Execution Engine, Pattern Matcher, Pattern Miner,
+***         Spacetime, Ghost/Psi, Meta-level
+*** ================================================================ )
+
+set show timing off .
+set show advisories off .
+
+*** =================================================================
+*** TEST EXECUTION ENGINE
+*** =================================================================
+
+load execution-engine.maude
+
+*** --- Lambda / Beta Reduction ---
+
+red in OC-BETA-REDUCE :
+  betaSubst(inheritance(variable("X"), concept("animal")),
+            variable("X"), concept("cat")) .
+*** expect: inheritance(concept("cat"), concept("animal"))
+
+red in OC-BETA-REDUCE :
+  betaSubst(implication(variable("A"), variable("B")),
+            variable("A"), concept("rain")) .
+*** expect: implication(concept("rain"), variable("B"))
+
+red in OC-BETA-REDUCE :
+  betaReduce(
+    inheritance(variable("X"), variable("Y")),
+    (variable("X"), variable("Y"), nil),
+    (concept("dog"), concept("mammal"), nil)) .
+*** expect: inheritance(concept("dog"), concept("mammal"))
+
+*** --- Free Variable Check ---
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), inheritance(variable("X"), concept("animal"))) .
+*** expect: true
+
+red in OC-LAMBDA :
+  isFreeIn(variable("Y"), inheritance(variable("X"), concept("animal"))) .
+*** expect: false
+
+red in OC-LAMBDA :
+  isFreeIn(variable("X"), quoteLink(variable("X"))) .
+*** expect: false
+
+*** --- Arithmetic Evaluation ---
+
+red in OC-ARITH-EVAL :
+  evalArithAtom(plusLink((number("3"), number("4"), nil))) .
+*** expect: number("7.0") or similar
+
+red in OC-ARITH-EVAL :
+  evalArithAtom(timesLink((number("2"), number("5"), nil))) .
+*** expect: number("10.0") or similar
+
+red in OC-ARITH-EVAL :
+  evalArithAtom(minusLink(number("10"), number("3"))) .
+*** expect: number("7.0")
+
+red in OC-ARITH-EVAL :
+  evalArithAtom(divideLink(number("10"), number("2"))) .
+*** expect: number("5.0")
+
+*** --- PutLink / Lambda Execution ---
+
+search [1] in OC-EXECUTION-ENGINE :
+  [putLink(lambdaLink((variable("X"), nil),
+           inheritance(variable("X"), concept("animal"))),
+           (concept("cat"), nil)),
+   stv(1.0, 0.9), defaultAV]
+=>+ AS:AtomSpace .
+
+*** =================================================================
+*** TEST PATTERN MATCHER (UNIFICATION)
+*** =================================================================
+
+load pattern-matcher.maude
+
+*** --- Basic Unification ---
+
+red in OC-UNIFICATION :
+  unify(variable("X"), concept("cat")) .
+*** expect: unifyOk(bind(variable("X"), concept("cat")))
+
+red in OC-UNIFICATION :
+  unify(concept("cat"), concept("cat")) .
+*** expect: unifyOk(emptySub)
+
+red in OC-UNIFICATION :
+  unify(concept("cat"), concept("dog")) .
+*** expect: unifyFail
+
+red in OC-UNIFICATION :
+  unify(inheritance(variable("X"), concept("animal")),
+        inheritance(concept("cat"), concept("animal"))) .
+*** expect: unifyOk(bind(variable("X"), concept("cat")))
+
+red in OC-UNIFICATION :
+  unify(inheritance(variable("X"), variable("Y")),
+        inheritance(concept("dog"), concept("mammal"))) .
+
+*** --- Apply Substitution ---
+
+red in OC-UNIFICATION :
+  applySub(inheritance(variable("X"), variable("Y")),
+           bind(variable("X"), concept("cat")) & bind(variable("Y"), concept("animal"))) .
+*** expect: inheritance(concept("cat"), concept("animal"))
+
+*** --- Occurs Check ---
+
+red in OC-UNIFICATION :
+  occursIn(variable("X"), inheritance(variable("X"), concept("a"))) .
+*** expect: true
+
+red in OC-UNIFICATION :
+  occursIn(variable("X"), inheritance(concept("a"), concept("b"))) .
+*** expect: false
+
+*** --- Graph Pattern Matching (BindLink) ---
+
+search [1] in OC-GRAPH-MATCH :
+  [bindLink((variable("X"), nil),
+            inheritance(variable("X"), concept("animal")),
+            member(variable("X"), concept("animals"))),
+   stv(1.0, 0.9), defaultAV]
+  [inheritance(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+=>+ AS:AtomSpace
+such that hasAtom(AS:AtomSpace, member(concept("cat"), concept("animals"))) == true .
+
+*** =================================================================
+*** TEST SPACETIME
+*** =================================================================
+
+load spacetime.maude
+
+*** --- Allen Interval Relations ---
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(3)), interval(tp(5), tp(7))) .
+*** expect: before
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(5), tp(7)), interval(tp(1), tp(3))) .
+*** expect: after
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(5)), interval(tp(5), tp(9))) .
+*** expect: meets
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(6)), interval(tp(4), tp(9))) .
+*** expect: overlaps
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(3), tp(7)), interval(tp(1), tp(9))) .
+*** expect: during
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(1), tp(9)), interval(tp(3), tp(7))) .
+*** expect: contains
+
+red in OC-ALLEN-INTERVALS :
+  allenRelation(interval(tp(5), tp(9)), interval(tp(5), tp(9))) .
+*** expect: equals
+
+*** --- Allen Inverse ---
+
+red in OC-ALLEN-INTERVALS :
+  allenInverse(before) .
+*** expect: after
+
+red in OC-ALLEN-INTERVALS :
+  allenInverse(overlaps) .
+*** expect: overlappedBy
+
+*** --- Duration ---
+
+red in OC-ALLEN-INTERVALS :
+  duration(interval(tp(3), tp(10))) .
+*** expect: 7
+
+*** --- Interval Operations ---
+
+red in OC-ALLEN-INTERVALS :
+  hull(interval(tp(2), tp(5)), interval(tp(4), tp(8))) .
+*** expect: interval(tp(2), tp(8))
+
+red in OC-ALLEN-INTERVALS :
+  intersect(interval(tp(2), tp(7)), interval(tp(4), tp(9))) .
+*** expect: interval(tp(4), tp(7))
+
+*** --- TimeServer ---
+
+red in OC-TIME-SERVER :
+  tsNow(addTemporal(timeServer(emptyTM, 100), concept("event1"), interval(tp(10), tp(20)))) .
+*** expect: 100
+
+*** --- Temporal Inference ---
+
+search [1] in OC-TEMPORAL-REASONING :
+  [atTimeLink(concept("A"), timeIntervalNode(1, 3)), stv(0.9, 0.8), defaultAV]
+  [atTimeLink(concept("B"), timeIntervalNode(5, 7)), stv(0.9, 0.8), defaultAV]
+  [atTimeLink(concept("C"), timeIntervalNode(9, 11)), stv(0.8, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that hasAtom(AS:AtomSpace, implication(concept("A"), concept("C"))) == true .
+
+*** =================================================================
+*** TEST GHOST/PSI
+*** =================================================================
+
+load ghost-psi.maude
+
+*** --- Demand Operations ---
+
+red in OC-OPENPSI-DEMANDS :
+  demandName(psiDemand("energy", 0.8, 0.9)) .
+*** expect: "energy"
+
+red in OC-OPENPSI-DEMANDS :
+  demandUrgency(psiDemand("energy", 0.8, 0.9)) .
+*** expect: 0.8
+
+red in OC-OPENPSI-DEMANDS :
+  demandName(mostUrgent(
+    psiDemand("energy", 0.8, 0.9) ;;
+    psiDemand("safety", 0.3, 0.9) ;;
+    psiDemand("affiliation", 0.5, 0.7)
+  )) .
+*** expect: "energy"
+
+*** --- Psi Rule Operations ---
+
+red in OC-OPENPSI-RULES :
+  psiRuleCount(
+    psiRule("r1", concept("hungry"), concept("eat"), "energy", 0.9) ;;
+    psiRule("r2", concept("danger"), concept("flee"), "safety", 0.8) ;;
+    psiRule("r3", concept("alone"), concept("greet"), "affiliation", 0.6)
+  ) .
+*** expect: 3
+
+red in OC-OPENPSI-RULES :
+  psiRuleCount(rulesForDemand(
+    psiRule("r1", concept("hungry"), concept("eat"), "energy", 0.9) ;;
+    psiRule("r2", concept("danger"), concept("flee"), "safety", 0.8) ;;
+    psiRule("r3", concept("alone"), concept("greet"), "affiliation", 0.6),
+    "energy"
+  )) .
+*** expect: 1
+
+*** --- Ghost Rule Operations ---
+
+red in OC-GHOST :
+  grType(ghostRule("hello", responder,
+         (concept("hi"), nil), concept("hello-response"), "greetings")) .
+*** expect: responder
+
+red in OC-GHOST :
+  grTopic(ghostRule("hello", responder,
+          (concept("hi"), nil), concept("hello-response"), "greetings")) .
+*** expect: "greetings"
+
+*** =================================================================
+*** TEST META-LEVEL
+*** =================================================================
+
+load meta-opencog.maude
+
+*** --- Type Checking ---
+
+red in OC-TYPE-INTROSPECT :
+  isNodeType(concept("cat")) .
+*** expect: true
+
+red in OC-TYPE-INTROSPECT :
+  isNodeType(inheritance(concept("a"), concept("b"))) .
+*** expect: false
+
+red in OC-TYPE-INTROSPECT :
+  isLinkType(inheritance(concept("a"), concept("b"))) .
+*** expect: true
+
+red in OC-TYPE-INTROSPECT :
+  isLinkType(concept("cat")) .
+*** expect: false
+
+red in OC-TYPE-INTROSPECT :
+  atomTypeName(concept("cat")) .
+*** expect: "ConceptNode"
+
+red in OC-TYPE-INTROSPECT :
+  atomTypeName(inheritance(concept("a"), concept("b"))) .
+*** expect: "InheritanceLink"
+
+red in OC-TYPE-INTROSPECT :
+  countNodes(
+    [concept("a"), stv(1.0, 0.9), defaultAV]
+    [concept("b"), stv(1.0, 0.9), defaultAV]
+    [inheritance(concept("a"), concept("b")), stv(0.9, 0.8), defaultAV]
+  ) .
+*** expect: 2
+
+red in OC-TYPE-INTROSPECT :
+  countLinks(
+    [concept("a"), stv(1.0, 0.9), defaultAV]
+    [concept("b"), stv(1.0, 0.9), defaultAV]
+    [inheritance(concept("a"), concept("b")), stv(0.9, 0.8), defaultAV]
+  ) .
+*** expect: 1
+
+*** --- Cognitive Synergy Strategies ---
+
+red in OC-COGNITIVE-SYNERGY :
+  stratLength(deductiveStrategy) .
+*** expect: 3
+
+red in OC-COGNITIVE-SYNERGY :
+  stratLength(exploratoryStrategy) .
+*** expect: 5
+
+*** --- Inference Monitor ---
+
+red in OC-INFERENCE-MONITOR :
+  successRate(ruleApp("deduction", 8, 10)) .
+*** expect: 0.8
+
+red in OC-INFERENCE-MONITOR :
+  rarSuccesses(ruleApp("deduction", 8, 10)) .
+*** expect: 8
+
+*** --- Self-Modification ---
+
+red in OC-SELF-MODIFY :
+  typeCount(dynType("MyNode", "ConceptNode") ;; dynType("MyLink", "InheritanceLink")) .
+*** expect: 2
+
+red in OC-SELF-MODIFY :
+  hasType(dynType("MyNode", "ConceptNode") ;; emptyDTR, "MyNode") .
+*** expect: true
+
+red in OC-SELF-MODIFY :
+  hasType(dynType("MyNode", "ConceptNode") ;; emptyDTR, "OtherNode") .
+*** expect: false
+
+*** =================================================================
+*** DONE
+*** =================================================================
+
+q

@@ -1,0 +1,257 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-PATTERN-MATCHER-FULL Module
+***  
+***  Full pattern matching with:
+***  - First-order unification
+***  - Graph pattern matching over AtomSpace
+***  - BindLink execution (pattern → rewrite)
+***  - MeetLink (pattern → results)
+***  - QueryLink (pattern → rewrite with results)
+***  - Type constraints on variables
+***  - Clause conjunction matching
+***  
+***  Based on: opencog/atomspace/query/
+*** ================================================================ )
+
+load execution-engine.maude
+
+*** =================================================================
+*** UNIFICATION
+*** =================================================================
+
+fmod OC-UNIFICATION is
+  protecting OC-BETA-REDUCE .
+
+  *** Substitution (reusing from pattern-matcher in ure.maude)
+  sort Substitution .
+  sort Binding .
+  subsort Binding < Substitution .
+
+  op emptySub : -> Substitution [ctor] .
+  op bind : VariableNode OcAtom -> Binding [ctor] .
+  op _&_ : Substitution Substitution -> Substitution [ctor assoc comm id: emptySub] .
+
+  *** Unification result
+  sort UnifyResult .
+  op unifyFail : -> UnifyResult [ctor] .
+  op unifyOk : Substitution -> UnifyResult [ctor] .
+
+  *** Unify two atoms
+  op unify : OcAtom OcAtom -> UnifyResult .
+  op unifyList : OcAtomList OcAtomList -> UnifyResult .
+  
+  *** Apply substitution
+  op applySub : OcAtom Substitution -> OcAtom .
+  op applySubList : OcAtomList Substitution -> OcAtomList .
+  
+  *** Compose substitutions
+  op compose : Substitution Substitution -> Substitution .
+  
+  *** Occurs check
+  op occursIn : VariableNode OcAtom -> Bool .
+
+  vars V V1 V2 : VariableNode .
+  vars A A1 A2 B B1 B2 : OcAtom .
+  vars AL BL : OcAtomList .
+  var Sub Sub1 Sub2 : Substitution .
+  var S S2 : String .
+
+  *** --- Unification Rules ---
+  
+  *** Variable unifies with anything (with occurs check)
+  ceq unify(V, A) = unifyOk(bind(V, A)) 
+    if not occursIn(V, A) .
+  ceq unify(A, V) = unifyOk(bind(V, A)) 
+    if not occursIn(V, A) [owise] .
+  
+  *** Identical ground atoms unify trivially
+  eq unify(concept(S), concept(S)) = unifyOk(emptySub) .
+  eq unify(predicate(S), predicate(S)) = unifyOk(emptySub) .
+  eq unify(number(S), number(S)) = unifyOk(emptySub) .
+  eq unify(schema(S), schema(S)) = unifyOk(emptySub) .
+  eq unify(anchor(S), anchor(S)) = unifyOk(emptySub) .
+  
+  *** Different ground atoms fail
+  ceq unify(concept(S), concept(S2)) = unifyFail if S =/= S2 .
+  ceq unify(predicate(S), predicate(S2)) = unifyFail if S =/= S2 .
+  ceq unify(number(S), number(S2)) = unifyFail if S =/= S2 .
+  
+  *** Cross-type ground atoms fail
+  eq unify(concept(S), predicate(S2)) = unifyFail .
+  eq unify(concept(S), number(S2)) = unifyFail .
+  eq unify(predicate(S), number(S2)) = unifyFail .
+  eq unify(predicate(S), concept(S2)) = unifyFail .
+  eq unify(number(S), concept(S2)) = unifyFail .
+  eq unify(number(S), predicate(S2)) = unifyFail .
+
+  *** Structural unification of links
+  eq unify(inheritance(A1, A2), inheritance(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(implication(A1, A2), implication(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(similarity(A1, A2), similarity(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(member(A1, A2), member(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(evaluation(A1, AL), evaluation(B1, BL)) = 
+     unifyList((A1, AL), (B1, BL)) .
+  eq unify(subset(A1, A2), subset(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(context(A1, A2), context(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(andLink(AL), andLink(BL)) = unifyList(AL, BL) .
+  eq unify(orLink(AL), orLink(BL)) = unifyList(AL, BL) .
+  eq unify(notLink(A1), notLink(B1)) = unify(A1, B1) .
+  eq unify(greaterThan(A1, A2), greaterThan(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+  eq unify(lessThan(A1, A2), lessThan(B1, B2)) = 
+     unifyList((A1, A2), (B1, B2)) .
+
+  *** List unification
+  eq unifyList(nil, nil) = unifyOk(emptySub) .
+  eq unifyList((A, AL), nil) = unifyFail .
+  eq unifyList(nil, (B, BL)) = unifyFail .
+  ceq unifyList((A, AL), (B, BL)) = 
+      if unify(A, B) == unifyFail then unifyFail
+      else (if unifyList(applySubList(AL, Sub1), applySubList(BL, Sub1)) == unifyFail 
+            then unifyFail
+            else unifyOk(Sub1 & Sub2)
+            fi)
+      fi
+    if unifyOk(Sub1) := unify(A, B) 
+    /\ unifyOk(Sub2) := unifyList(applySubList(AL, Sub1), applySubList(BL, Sub1)) .
+  eq unifyList((A, AL), (B, BL)) = unifyFail [owise] .
+
+  *** Apply substitution
+  eq applySub(V, bind(V, A) & Sub) = A .
+  eq applySub(V, Sub) = V [owise] .
+  eq applySub(concept(S), Sub) = concept(S) .
+  eq applySub(predicate(S), Sub) = predicate(S) .
+  eq applySub(number(S), Sub) = number(S) .
+  eq applySub(schema(S), Sub) = schema(S) .
+  eq applySub(anchor(S), Sub) = anchor(S) .
+  
+  eq applySub(inheritance(A1, A2), Sub) = 
+     inheritance(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(implication(A1, A2), Sub) = 
+     implication(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(similarity(A1, A2), Sub) = 
+     similarity(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(member(A1, A2), Sub) = 
+     member(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(evaluation(A1, AL), Sub) = 
+     evaluation(applySub(A1, Sub), applySubList(AL, Sub)) .
+  eq applySub(andLink(AL), Sub) = andLink(applySubList(AL, Sub)) .
+  eq applySub(orLink(AL), Sub) = orLink(applySubList(AL, Sub)) .
+  eq applySub(notLink(A1), Sub) = notLink(applySub(A1, Sub)) .
+  eq applySub(subset(A1, A2), Sub) = 
+     subset(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(greaterThan(A1, A2), Sub) = 
+     greaterThan(applySub(A1, Sub), applySub(A2, Sub)) .
+  eq applySub(lessThan(A1, A2), Sub) = 
+     lessThan(applySub(A1, Sub), applySub(A2, Sub)) .
+
+  eq applySubList(nil, Sub) = nil .
+  eq applySubList((A, AL), Sub) = applySub(A, Sub), applySubList(AL, Sub) .
+
+  *** Occurs check
+  eq occursIn(V, V) = true .
+  eq occursIn(V, concept(S)) = false .
+  eq occursIn(V, predicate(S)) = false .
+  eq occursIn(V, number(S)) = false .
+  eq occursIn(V, schema(S)) = false .
+  eq occursIn(V, anchor(S)) = false .
+  eq occursIn(V, V2) = V == V2 [owise] .
+  eq occursIn(V, inheritance(A1, A2)) = occursIn(V, A1) or occursIn(V, A2) .
+  eq occursIn(V, implication(A1, A2)) = occursIn(V, A1) or occursIn(V, A2) .
+  eq occursIn(V, similarity(A1, A2)) = occursIn(V, A1) or occursIn(V, A2) .
+  eq occursIn(V, member(A1, A2)) = occursIn(V, A1) or occursIn(V, A2) .
+  eq occursIn(V, evaluation(A1, AL)) = occursIn(V, A1) or occursInList(V, AL) .
+  eq occursIn(V, andLink(AL)) = occursInList(V, AL) .
+  eq occursIn(V, orLink(AL)) = occursInList(V, AL) .
+  eq occursIn(V, notLink(A1)) = occursIn(V, A1) .
+
+  op occursInList : VariableNode OcAtomList -> Bool .
+  eq occursInList(V, nil) = false .
+  eq occursInList(V, (A, AL)) = occursIn(V, A) or occursInList(V, AL) .
+
+endfm
+
+*** =================================================================
+*** GRAPH PATTERN MATCHING
+*** =================================================================
+
+mod OC-GRAPH-MATCH is
+  protecting OC-UNIFICATION .
+
+  vars A A1 A2 Pat Rewrite : OcAtom .
+  var AL VL PatClauses : OcAtomList .
+  var V : VariableNode .
+  var TV TV1 : OcTruthValue .
+  var AV AV1 : OcAttentionValue .
+  var AS : AtomSpace .
+  var Sub : Substitution .
+
+  *** =============================================================
+  *** BINDLINK EXECUTION
+  *** BindLink(Vars, Pattern, Rewrite) matches Pattern against AS
+  *** and produces Rewrite with substituted variables
+  *** =============================================================
+
+  *** Match a single clause pattern against an atom in the AtomSpace
+  crl [bind-match-clause] :
+      [bindLink(VL, Pat, Rewrite), TV, AV]
+      [A, TV1, AV1]
+      AS
+    =>
+      [applySub(Rewrite, Sub), TV, AV]
+      [A, TV1, AV1]
+      AS
+    if unifyOk(Sub) := unify(Pat, A) .
+
+  *** =============================================================
+  *** MEETLINK EXECUTION
+  *** MeetLink(Vars, Pattern) → SetLink of all matching atoms
+  *** =============================================================
+
+  crl [meet-match] :
+      [meet(VL, Pat), TV, AV]
+      [A, TV1, AV1]
+      AS
+    =>
+      [setLink(applySub(Pat, Sub)), TV, AV]
+      [A, TV1, AV1]
+      AS
+    if unifyOk(Sub) := unify(Pat, A) .
+
+  *** =============================================================
+  *** QUERYLINK EXECUTION  
+  *** QueryLink(Vars, Pattern, Rewrite) → SetLink of rewrites
+  *** =============================================================
+
+  crl [query-match] :
+      [queryLink(VL, Pat, Rewrite), TV, AV]
+      [A, TV1, AV1]
+      AS
+    =>
+      [setLink(applySub(Rewrite, Sub)), TV, AV]
+      [A, TV1, AV1]
+      AS
+    if unifyOk(Sub) := unify(Pat, A) .
+
+  *** =============================================================
+  *** SATISFACTIONLINK
+  *** SatisfactionLink(Vars, Pattern) → TrueLink if match exists
+  *** =============================================================
+
+  crl [satisfaction-true] :
+      [satisfaction(VL, Pat), TV, AV]
+      [A, TV1, AV1]
+      AS
+    =>
+      [satisfaction(VL, Pat), stv(1.0, 1.0), AV]
+      [A, TV1, AV1]
+      AS
+    if unifyOk(Sub) := unify(Pat, A) .
+
+endm

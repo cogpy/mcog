@@ -1,0 +1,328 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-GHOST-PSI Module
+***  
+***  Implements the OpenPsi motivational framework and GHOST
+***  dialogue system:
+***  
+***  OpenPsi:
+***  - Demands (drives with urgency levels)
+***  - Psi-rules (context → action if demand satisfied)
+***  - Action selection based on urgency
+***  - Modulator dynamics (activation, resolution, etc.)
+***  
+***  GHOST:
+***  - Dialogue rules (pattern → response)
+***  - Topic management
+***  - Gambit/rejoinder structure
+***  - Context-sensitive response selection
+***  
+***  Based on: opencog/ghost/ and opencog/openpsi/
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** OPENPSI DEMANDS AND MODULATORS
+*** =================================================================
+
+fmod OC-OPENPSI-DEMANDS is
+  protecting OC-ATOM-SPACE .
+  protecting FLOAT .
+
+  *** Demand: a drive with current urgency level [0.0, 1.0]
+  sort PsiDemand .
+  op psiDemand : String Float Float -> PsiDemand [ctor] .
+  
+  op demandName : PsiDemand -> String .
+  op demandUrgency : PsiDemand -> Float .
+  op demandTarget : PsiDemand -> Float .
+  
+  var DN : String .
+  vars DU DT : Float .
+  
+  eq demandName(psiDemand(DN, DU, DT)) = DN .
+  eq demandUrgency(psiDemand(DN, DU, DT)) = DU .
+  eq demandTarget(psiDemand(DN, DU, DT)) = DT .
+
+  *** Demand collection
+  sort DemandSet .
+  subsort PsiDemand < DemandSet .
+  op emptyDemands : -> DemandSet [ctor] .
+  op _;;_ : DemandSet DemandSet -> DemandSet [ctor assoc comm id: emptyDemands] .
+
+  *** Modulator: continuous variable affecting behavior [0.0, 1.0]
+  sort PsiModulator .
+  op psiMod : String Float -> PsiModulator [ctor] .
+  
+  op modName : PsiModulator -> String .
+  op modLevel : PsiModulator -> Float .
+  
+  var MN : String .
+  var ML : Float .
+  
+  eq modName(psiMod(MN, ML)) = MN .
+  eq modLevel(psiMod(MN, ML)) = ML .
+
+  sort ModulatorSet .
+  subsort PsiModulator < ModulatorSet .
+  op emptyMods : -> ModulatorSet [ctor] .
+  op _;;_ : ModulatorSet ModulatorSet -> ModulatorSet [ctor assoc comm id: emptyMods] .
+
+  *** Standard OpenCog modulators
+  op defaultModulators : -> ModulatorSet .
+  eq defaultModulators = 
+     psiMod("activation", 0.5) ;;
+     psiMod("resolution", 0.5) ;;
+     psiMod("securing-threshold", 0.5) ;;
+     psiMod("selection-threshold", 0.5) ;;
+     psiMod("pleasure", 0.5) .
+
+  *** Standard demands
+  op defaultDemands : -> DemandSet .
+  eq defaultDemands = 
+     psiDemand("energy", 0.8, 0.9) ;;
+     psiDemand("safety", 0.7, 0.9) ;;
+     psiDemand("affiliation", 0.5, 0.7) ;;
+     psiDemand("certainty", 0.6, 0.8) ;;
+     psiDemand("competence", 0.5, 0.7) .
+
+  *** Most urgent demand
+  op mostUrgent : DemandSet -> PsiDemand .
+  op mostUrgentAux : DemandSet PsiDemand -> PsiDemand .
+  
+  var D D2 : PsiDemand .
+  var DS : DemandSet .
+  
+  eq mostUrgent(D ;; DS) = mostUrgentAux(DS, D) .
+  eq mostUrgent(D) = D .
+  eq mostUrgentAux(emptyDemands, D) = D .
+  eq mostUrgentAux(D2 ;; DS, D) = 
+     if demandUrgency(D2) > demandUrgency(D)
+     then mostUrgentAux(DS, D2)
+     else mostUrgentAux(DS, D) fi .
+
+endfm
+
+*** =================================================================
+*** OPENPSI RULES
+*** =================================================================
+
+fmod OC-OPENPSI-RULES is
+  protecting OC-OPENPSI-DEMANDS .
+
+  *** Psi-Rule: context → action (associated with a demand)
+  sort PsiRule .
+  op psiRule : String OcAtom OcAtom String Float -> PsiRule [ctor] .
+  
+  op prName : PsiRule -> String .
+  op prContext : PsiRule -> OcAtom .
+  op prAction : PsiRule -> OcAtom .
+  op prDemand : PsiRule -> String .
+  op prWeight : PsiRule -> Float .
+  
+  vars RN RD : String .
+  vars Ctx Act : OcAtom .
+  var RW : Float .
+  
+  eq prName(psiRule(RN, Ctx, Act, RD, RW)) = RN .
+  eq prContext(psiRule(RN, Ctx, Act, RD, RW)) = Ctx .
+  eq prAction(psiRule(RN, Ctx, Act, RD, RW)) = Act .
+  eq prDemand(psiRule(RN, Ctx, Act, RD, RW)) = RD .
+  eq prWeight(psiRule(RN, Ctx, Act, RD, RW)) = RW .
+
+  *** Rule collection
+  sort PsiRuleSet .
+  subsort PsiRule < PsiRuleSet .
+  op emptyPsiRules : -> PsiRuleSet [ctor] .
+  op _;;_ : PsiRuleSet PsiRuleSet -> PsiRuleSet [ctor assoc comm id: emptyPsiRules] .
+
+  *** Filter rules by demand
+  op rulesForDemand : PsiRuleSet String -> PsiRuleSet .
+  var PR : PsiRule .
+  var PRS : PsiRuleSet .
+  var S : String .
+  
+  eq rulesForDemand(emptyPsiRules, S) = emptyPsiRules .
+  eq rulesForDemand(PR ;; PRS, S) = 
+     if prDemand(PR) == S 
+     then PR ;; rulesForDemand(PRS, S)
+     else rulesForDemand(PRS, S) fi .
+
+  *** Count rules
+  op psiRuleCount : PsiRuleSet -> Nat .
+  eq psiRuleCount(emptyPsiRules) = 0 .
+  eq psiRuleCount(PR ;; PRS) = 1 + psiRuleCount(PRS) .
+
+endfm
+
+*** =================================================================
+*** GHOST DIALOGUE SYSTEM
+*** =================================================================
+
+fmod OC-GHOST is
+  protecting OC-OPENPSI-RULES .
+
+  *** Ghost rule types
+  sort GhostRuleType .
+  ops responder gambit rejoinder : -> GhostRuleType [ctor] .
+
+  *** Ghost rule: pattern → response with topic and type
+  sort GhostRule .
+  op ghostRule : String GhostRuleType OcAtomList OcAtom String -> GhostRule [ctor] .
+  
+  op grName : GhostRule -> String .
+  op grType : GhostRule -> GhostRuleType .
+  op grPattern : GhostRule -> OcAtomList .
+  op grResponse : GhostRule -> OcAtom .
+  op grTopic : GhostRule -> String .
+  
+  vars GN GT2 : String .
+  var GRT : GhostRuleType .
+  var GPat : OcAtomList .
+  var GResp : OcAtom .
+  
+  eq grName(ghostRule(GN, GRT, GPat, GResp, GT2)) = GN .
+  eq grType(ghostRule(GN, GRT, GPat, GResp, GT2)) = GRT .
+  eq grPattern(ghostRule(GN, GRT, GPat, GResp, GT2)) = GPat .
+  eq grResponse(ghostRule(GN, GRT, GPat, GResp, GT2)) = GResp .
+  eq grTopic(ghostRule(GN, GRT, GPat, GResp, GT2)) = GT2 .
+
+  *** Ghost rule set
+  sort GhostRuleSet .
+  subsort GhostRule < GhostRuleSet .
+  op emptyGhostRules : -> GhostRuleSet [ctor] .
+  op _;;_ : GhostRuleSet GhostRuleSet -> GhostRuleSet [ctor assoc comm id: emptyGhostRules] .
+
+  *** Topic
+  sort GhostTopic .
+  op ghostTopic : String GhostRuleSet -> GhostTopic [ctor] .
+  
+  sort TopicSet .
+  subsort GhostTopic < TopicSet .
+  op emptyTopics : -> TopicSet [ctor] .
+  op _;;_ : TopicSet TopicSet -> TopicSet [ctor assoc comm id: emptyTopics] .
+
+  *** Filter rules by topic
+  op rulesInTopic : GhostRuleSet String -> GhostRuleSet .
+  var GR : GhostRule .
+  var GRS : GhostRuleSet .
+  var S : String .
+  
+  eq rulesInTopic(emptyGhostRules, S) = emptyGhostRules .
+  eq rulesInTopic(GR ;; GRS, S) = 
+     if grTopic(GR) == S 
+     then GR ;; rulesInTopic(GRS, S)
+     else rulesInTopic(GRS, S) fi .
+
+endfm
+
+*** =================================================================
+*** OPENPSI ACTION SELECTION ENGINE
+*** =================================================================
+
+mod OC-OPENPSI-ENGINE is
+  protecting OC-GHOST .
+
+  sort PsiState .
+  op psiState : AtomSpace DemandSet ModulatorSet PsiRuleSet GhostRuleSet String Nat -> PsiState [ctor] .
+
+  op psiAS : PsiState -> AtomSpace .
+  op psiDemands : PsiState -> DemandSet .
+  op psiMods : PsiState -> ModulatorSet .
+  op psiRules : PsiState -> PsiRuleSet .
+  op psiGhost : PsiState -> GhostRuleSet .
+  op psiTopic : PsiState -> String .
+  op psiCycle : PsiState -> Nat .
+
+  var AS : AtomSpace .
+  var DS : DemandSet .
+  var MS : ModulatorSet .
+  var PRS : PsiRuleSet .
+  var GRS : GhostRuleSet .
+  var Topic : String .
+  var N : Nat .
+  var D : PsiDemand .
+  var PR : PsiRule .
+  vars Ctx Act A : OcAtom .
+  var TV : OcTruthValue .
+  var AV : OcAttentionValue .
+  vars DU DT RW : Float .
+  var DN : String .
+
+  eq psiAS(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = AS .
+  eq psiDemands(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = DS .
+  eq psiMods(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = MS .
+  eq psiRules(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = PRS .
+  eq psiGhost(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = GRS .
+  eq psiTopic(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = Topic .
+  eq psiCycle(psiState(AS, DS, MS, PRS, GRS, Topic, N)) = N .
+
+  *** =============================================================
+  *** DEMAND DYNAMICS
+  *** =============================================================
+
+  *** Demand urgency increases over time (decay toward need)
+  crl [psi-demand-increase] :
+      psiState(AS, psiDemand(DN, DU, DT) ;; DS, MS, PRS, GRS, Topic, N)
+    =>
+      psiState(AS, psiDemand(DN, clamp01(DU + 0.01), DT) ;; DS, MS, PRS, GRS, Topic, N + 1)
+    if DU < DT .
+
+  *** =============================================================
+  *** ACTION SELECTION
+  *** Select and execute the highest-weight rule for most urgent demand
+  *** =============================================================
+
+  *** Execute a psi-rule: if context atom is in AS, fire action
+  crl [psi-fire-rule] :
+      psiState(
+        [Ctx, TV, AV] AS,
+        psiDemand(DN, DU, DT) ;; DS,
+        MS,
+        psiRule("r", Ctx, Act, DN, RW) ;; PRS,
+        GRS, Topic, N)
+    =>
+      psiState(
+        [Ctx, TV, AV] [Act, stv(1.0, 0.9), AV] AS,
+        psiDemand(DN, clamp01(DU - 0.1), DT) ;; DS,
+        MS,
+        psiRule("r", Ctx, Act, DN, RW) ;; PRS,
+        GRS, Topic, N + 1)
+    if DU > 0.3 /\ tvStrength(TV) > 0.5 .
+
+  *** =============================================================
+  *** GHOST DIALOGUE EXECUTION
+  *** Match input against ghost rules and produce response
+  *** =============================================================
+
+  *** Ghost responder: match input word pattern
+  crl [ghost-respond] :
+      psiState(
+        [evaluation(predicate("input"), (A, nil)), TV, AV] AS,
+        DS, MS, PRS,
+        ghostRule("r", responder, (A, nil), Act, Topic) ;; GRS,
+        Topic, N)
+    =>
+      psiState(
+        [evaluation(predicate("input"), (A, nil)), TV, AV]
+        [evaluation(predicate("say"), (Act, nil)), stv(1.0, 1.0), AV]
+        AS,
+        DS, MS, PRS,
+        ghostRule("r", responder, (A, nil), Act, Topic) ;; GRS,
+        Topic, N + 1)
+    if tvStrength(TV) > 0.5 .
+
+  *** Ghost gambit: proactive utterance when no input matches
+  rl [ghost-gambit] :
+      psiState(AS, DS, MS, PRS,
+        ghostRule("g", gambit, nil, Act, Topic) ;; GRS,
+        Topic, N)
+    =>
+      psiState(
+        [evaluation(predicate("say"), (Act, nil)), stv(1.0, 1.0), defaultAV]
+        AS,
+        DS, MS, PRS,
+        ghostRule("g", gambit, nil, Act, Topic) ;; GRS,
+        Topic, N + 1) .
+
+endm
