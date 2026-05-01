@@ -1,0 +1,59 @@
+name: Build CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify-modules:
+    name: Verify — ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - truth-value.maude
+          - attention-value.maude
+          - atom-types.maude
+          - atom-space.maude
+          - pln.maude
+          - ecan.maude
+          - moses.maude
+          - ure.maude
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Maude
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y maude
+
+      - name: Load ${{ matrix.module }}
+        run: |
+          printf 'load %s\nq\n' '${{ matrix.module }}' \
+            | maude 2>&1 \
+            | tee /tmp/maude-load.txt
+          if grep -qE '^Error:|^parse error|No parse for' /tmp/maude-load.txt; then
+            echo "::error::${{ matrix.module }} failed to load — see log above for details"
+            exit 1
+          fi
+          echo "${{ matrix.module }} loaded successfully"
+
+  all-modules-ok:
+    name: All modules OK
+    runs-on: ubuntu-latest
+    permissions: {}
+    needs: verify-modules
+    if: always()
+    steps:
+      - name: Check matrix result
+        run: |
+          if [ "${{ needs.verify-modules.result }}" != "success" ]; then
+            echo "One or more modules failed to load."
+            exit 1
+          fi
+          echo "All modules loaded successfully."

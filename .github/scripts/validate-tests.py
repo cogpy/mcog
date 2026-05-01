@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+"""Validate OpenCog Maude test suite output against expected values.
+
+Parses ``*** expect:`` annotations from the test file and compares them with
+the actual results produced by Maude, verifying all equational reductions and
+state-space searches.
+
+Usage:
+    python3 validate-tests.py <test-file> [maude-command]
+"""
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def parse_test_commands(test_file: str) -> list:
+    """Return an ordered list of ``(cmd_type, expected)`` tuples.
+
+    *cmd_type* is ``'red'`` or ``'search'``.
+    *expected* is the annotated expected-value string, or ``None`` when no
+    ``*** expect:`` comment follows the command.
+    """
+    lines = Path(test_file).read_text().splitlines()
+    commands = []
+    i = 0
+    n = len(lines)
+
+    while i < n:
+        stripped = lines[i].strip()
+
+        if stripped.startswith("red "):
+            # Collect the full command — may span multiple lines up to the
+            # Maude command terminator ".".
+            cmd = stripped
+            j = i
+            while not cmd.rstrip().endswith("."):
+                j += 1
+                if j >= n:
+                    break
+                nxt = lines[j].strip()
+                # Append non-empty, non-comment continuation lines.
+                if nxt and not nxt.startswith("***"):
+                    cmd += " " + nxt
+
+            # Look for a "*** expect:" annotation on the next non-blank line.
+            k = j + 1
+            while k < n and lines[k].strip() == "":
+                k += 1
+            expected = None
+            if k < n and lines[k].strip().startswith("*** expect:"):
+                expected = lines[k].strip()[len("*** expect:"):].strip()
+
+            commands.append(("red", expected))
+            i = j + 1
+            continue
+
+        if stripped.startswith("search "):
+            # Collect the full search command.
+            cmd = stripped
+            j = i
+            while not cmd.rstrip().endswith("."):
+                j += 1
+                if j >= n:
+                    break
+                nxt = lines[j].strip()
+                if nxt and not nxt.startswith("***"):
+                    cmd += " " + nxt
+
+            commands.append(("search", None))
+            i = j + 1
+            continue
+
+        i += 1
+
+    return commands
+
+
+def parse_maude_output(output: str) -> tuple:
+    """Extract reduction results and search outcomes from Maude's output.
+
+    Returns:
+        results:      ordered list of result-value strings (one per ``reduce``).
+        search_found: ordered list of bools (``True`` ↔ Solution 1 was found).
+    """
+    results = []
+    search_found = []
+    in_search = False
+    found_solution = False
+
+    for line in output.splitlines():
+        stripped = line.strip()
+
+        # Reduction result: "result TYPE: VALUE"
+        m = re.match(r"^result \S+:\s*(.+)$", stripped)
+        if m:
+            results.append(m.group(1).strip())
+            continue
+
+        # Start of a search command echo from Maude.
+        if re.match(r"^search\s*\[", stripped):
+            if in_search:
+                search_found.append(found_solution)
+                found_solution = False
+            in_search = True
+            found_solution = False
+            continue
+
+        # Search solved.
+        if in_search and re.match(r"^Solution\s+1\b", stripped):
+            found_solution = True
+            continue
+
+        # Search ended with no solution.
+        if in_search and stripped == "No solution.":
+            search_found.append(False)
+            in_search = False
+            found_solution = False
+            continue
+
+        # Search exhausted all solutions (at least one was found).
+        if in_search and stripped == "No more solutions.":
+            search_found.append(found_solution)
+            in_search = False
+            found_solution = False
+            continue
+
+    # Handle the last search block if output ended without a closing marker.
+    if in_search:
+        search_found.append(found_solution)
+
+    return results, search_found
+
+
+def run_and_validate(test_file: str, maude_cmd: str = "maude") -> bool:
+    """Run the test suite and validate all results.
+
+    Returns ``True`` when every annotated assertion and every search passes.
+    """
+    print(f"Parsing: {test_file}")
+    commands = parse_test_commands(test_file)
+    red_commands = [(pos, exp) for pos, (t, exp) in enumerate(commands) if t == "red"]
+    search_commands = [pos for pos, (t, _) in enumerate(commands) if t == "search"]
+    annotated = sum(1 for _, e in red_commands if e is not None)
+
+    print(
+        f"Discovered {len(red_commands)} reductions "
+        f"({annotated} with expected values) and {len(search_commands)} searches"
+    )
+
+    # ------------------------------------------------------------------ #
+    # Run Maude                                                            #
+    # ------------------------------------------------------------------ #
+    print(f"\nRunning: {maude_cmd} {test_file}")
+    try:
+        proc = subprocess.run(
+            [maude_cmd, test_file],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError:
+        print(f"ERROR: '{maude_cmd}' not found. Is Maude installed?")
+        return False
+    except subprocess.TimeoutExpired:
+        print("ERROR: Maude timed out after 300 seconds.")
+        return False
+
+    output = proc.stdout + proc.stderr
+
+    # Persist raw output for CI artifacts.
+    try:
+        Path("/tmp/maude-test-output.txt").write_text(output)
+    except OSError:
+        pass
+
+    # ------------------------------------------------------------------ #
+    # Fatal load / parse errors                                            #
+    # ------------------------------------------------------------------ #
+    error_lines = [
+        l for l in output.splitlines()
+        if re.match(r"^Error:|^parse error", l.strip())
+    ]
+    if error_lines:
+        print("\nFATAL ERRORS in Maude output:")
+        for e in error_lines:
+            print(f"  {e}")
+        return False
+
+    actuals, search_found = parse_maude_output(output)
+
+    if len(actuals) != len(red_commands):
+        print(
+            f"\nWARNING: Expected {len(red_commands)} result lines, "
+            f"got {len(actuals)}. Output may be truncated or contain errors."
+        )
+
+    passed = 0
+    failed = 0
+    skipped = 0
+
+    # ------------------------------------------------------------------ #
+    # Validate equational reductions                                       #
+    # ------------------------------------------------------------------ #
+    print("\n=== Reduction Results ===")
+    for pos, (cmd_idx, expected) in enumerate(red_commands):
+        label = f"reduction {pos + 1}/{len(red_commands)}"
+
+        if pos >= len(actuals):
+            print(f"  FAIL [{label}]: no output produced")
+            failed += 1
+            continue
+
+        actual = actuals[pos]
+
+        if expected is None:
+            print(f"  SKIP [{label}]: {actual[:70]}")
+            skipped += 1
+        elif actual == expected:
+            print(f"  PASS [{label}]: {actual}")
+            passed += 1
+        else:
+            print(f"  FAIL [{label}]: expected '{expected}', got '{actual}'")
+            failed += 1
+
+    # ------------------------------------------------------------------ #
+    # Validate state-space searches                                        #
+    # ------------------------------------------------------------------ #
+    print("\n=== Search Results ===")
+    if len(search_found) != len(search_commands):
+        print(
+            f"WARNING: Expected {len(search_commands)} search results, "
+            f"got {len(search_found)}."
+        )
+
+    for i in range(len(search_commands)):
+        label = f"search {i + 1}/{len(search_commands)}"
+        if i >= len(search_found):
+            print(f"  FAIL [{label}]: no result recorded")
+            failed += 1
+        elif search_found[i]:
+            print(f"  PASS [{label}]: solution found")
+            passed += 1
+        else:
+            print(f"  FAIL [{label}]: no solution found (expected a solution)")
+            failed += 1
+
+    # ------------------------------------------------------------------ #
+    # Summary                                                              #
+    # ------------------------------------------------------------------ #
+    print(f"\n{'=' * 50}")
+    total_checked = passed + failed
+    print(
+        f"Results: {passed} passed, {failed} failed, {skipped} skipped "
+        f"(out of {total_checked} checked)"
+    )
+
+    if failed == 0:
+        print("All tests PASSED!")
+    else:
+        print(f"{failed} test(s) FAILED.")
+
+    return failed == 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <test-file> [maude-command]")
+        sys.exit(1)
+
+    _test_file = sys.argv[1]
+    _maude_cmd = sys.argv[2] if len(sys.argv) > 2 else "maude"
+
+    success = run_and_validate(_test_file, _maude_cmd)
+    sys.exit(0 if success else 1)
