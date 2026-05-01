@@ -22,6 +22,12 @@ jobs:
           - ecan.maude
           - moses.maude
           - ure.maude
+          - execution-engine.maude
+          - pattern-matcher.maude
+          - pattern-miner.maude
+          - spacetime.maude
+          - ghost-psi.maude
+          - meta-opencog.maude
 
     steps:
       - name: Checkout repository
