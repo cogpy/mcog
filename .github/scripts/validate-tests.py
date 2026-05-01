@@ -77,6 +77,60 @@ def parse_test_commands(test_file: str) -> list:
     return commands
 
 
+def values_match(expected: str, actual: str) -> bool:
+    """Compare two result strings, treating float literals as numerically equal
+    when they are within a small relative tolerance.
+
+    Maude sometimes outputs floats in scientific notation with IEEE 754
+    rounding noise (e.g. ``8.0000000000000004e-1`` instead of ``0.8``).
+    This function tokenises both strings into alternating non-numeric and
+    numeric segments and compares them structurally, using a relative
+    tolerance of 1e-9 for numeric tokens.
+    """
+    if expected == actual:
+        return True
+
+    # Split each string into alternating (non-numeric, numeric) fragments.
+    # The pattern handles: integers, decimals (with or without leading digit),
+    # and scientific-notation literals.
+    float_pat = re.compile(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?')
+
+    def tokenize(s):
+        tokens = []
+        pos = 0
+        for m in float_pat.finditer(s):
+            tokens.append(('str', s[pos:m.start()]))
+            tokens.append(('num', m.group()))
+            pos = m.end()
+        tokens.append(('str', s[pos:]))
+        return tokens
+
+    exp_tokens = tokenize(expected)
+    act_tokens = tokenize(actual)
+
+    if len(exp_tokens) != len(act_tokens):
+        return False
+
+    for et, at in zip(exp_tokens, act_tokens):
+        if et[0] != at[0]:
+            return False
+        if et[0] == 'str':
+            if et[1] != at[1]:
+                return False
+        else:
+            try:
+                ev, av = float(et[1]), float(at[1])
+                mag = max(abs(ev), abs(av))
+                tol = 1e-9 * mag if mag > 1e-12 else 1e-12
+                if abs(ev - av) > tol:
+                    return False
+            except ValueError:
+                if et[1] != at[1]:
+                    return False
+
+    return True
+
+
 def parse_maude_output(output: str) -> tuple:
     """Extract reduction results and search outcomes from Maude's output.
 
@@ -217,7 +271,7 @@ def run_and_validate(test_file: str, maude_cmd: str = "maude") -> bool:
         if expected is None:
             print(f"  SKIP [{label}]: {actual[:70]}")
             skipped += 1
-        elif actual == expected:
+        elif values_match(expected, actual):
             print(f"  PASS [{label}]: {actual}")
             passed += 1
         else:
