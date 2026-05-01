@@ -1,0 +1,35 @@
+name: E2E Unit Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Run Exhaustive Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Maude
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y maude
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run test suite and validate results
+        run: python3 .github/scripts/validate-tests.py test-opencog.maude
+
+      - name: Upload raw Maude output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maude-test-output
+          path: /tmp/maude-test-output.txt
+          if-no-files-found: ignore
