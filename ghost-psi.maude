@@ -274,7 +274,7 @@ mod OC-OPENPSI-ENGINE is
   *** =============================================================
 
   *** Execute a psi-rule: if context atom is in AS, fire action
-  *** (Phase 3.2) Also stimulate STI of Ctx and Act atoms by 50 (ECAN coupling)
+  *** [Phase 3.2] Also stimulate STI of Ctx and Act atoms by 50 (ECAN coupling)
   crl [psi-fire-rule] :
       psiState(
         [Ctx, TV, AV] AS,
@@ -293,7 +293,7 @@ mod OC-OPENPSI-ENGINE is
         GRS, Topic, N + 1)
     if DU > 0.3 /\ tvStrength(TV) > 0.5 .
 
-  *** (Phase 3.2) Demand homeostasis: urgency decays back toward target
+  *** [Phase 3.2] Demand homeostasis: urgency decays back toward target
   *** when it overshoots (too urgent).  Rate: 0.005 per cycle.
   crl [psi-demand-decay] :
       psiState(AS, psiDemand(DN, DU, DT) ;; DS, MS, PRS, GRS, Topic, N)
@@ -336,7 +336,7 @@ mod OC-OPENPSI-ENGINE is
         ghostRule("g", gambit, nil, Act, Topic) ;; GRS,
         Topic, N + 1) .
 
-  *** (Phase 3.3) Ghost rejoinder: after a responder fires on topic T,
+  *** [Phase 3.3] Ghost rejoinder: after a responder fires on topic T,
   *** prefer rejoinder rules in the same topic for the next turn.
   *** The fired topic is signalled by a "last-topic" evaluation in AS.
   crl [ghost-rejoinder] :
@@ -358,7 +358,7 @@ mod OC-OPENPSI-ENGINE is
         Topic, N + 1)
     if tvStrength(TV) > 0.5 .
 
-  *** (Phase 3.3) Record the current topic after a responder fires
+  *** [Phase 3.3] Record the current topic after a responder fires
   *** so rejoinders can pick it up next turn.
   crl [ghost-record-topic] :
       psiState(

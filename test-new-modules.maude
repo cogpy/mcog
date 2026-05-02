@@ -66,7 +66,7 @@ red in OC-ARITH-EVAL :
 
 *** --- PutLink / Lambda Execution ---
 
-search [1] in OC-EXECUTION-ENGINE :
+search [1, 1] in OC-EXECUTION-ENGINE :
   [putLink(lambdaLink((variable("X"), nil),
            inheritance(variable("X"), concept("animal"))),
            (concept("cat"), nil)),
@@ -121,7 +121,7 @@ red in OC-UNIFICATION :
 
 *** --- Graph Pattern Matching (BindLink) ---
 
-search [1] in OC-GRAPH-MATCH :
+search [1, 1] in OC-GRAPH-MATCH :
   [bindLink((variable("X"), nil),
             inheritance(variable("X"), concept("animal")),
             member(variable("X"), concept("animals"))),
@@ -200,7 +200,7 @@ red in OC-TIME-SERVER :
 
 *** --- Temporal Inference ---
 
-search [1] in OC-TEMPORAL-REASONING :
+search [1, 1] in OC-TEMPORAL-REASONING :
   [atTimeLink(concept("A"), timeIntervalNode(1, 3)), stv(0.9, 0.8), defaultAV]
   [atTimeLink(concept("B"), timeIntervalNode(5, 7)), stv(0.9, 0.8), defaultAV]
   [atTimeLink(concept("C"), timeIntervalNode(9, 11)), stv(0.8, 0.7), defaultAV]

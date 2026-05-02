@@ -207,7 +207,7 @@ fmod OC-ATOM-SPACE is
   eq addAtom(AS, A, TV) = AS [A, TV, defaultAV] .
   eq addAtom(AS, A) = AS [A, defaultTV, defaultAV] .
 
-  *** (Phase 1.2) mergeTV: if atom already present apply revision, else add fresh
+  *** [Phase 1.2] mergeTV: if atom already present apply revision, else add fresh
   eq mergeTV([A, TV, AV] AS, A, TV1) = [A, tvRevision(TV, TV1), AV] AS .
   eq mergeTV(AS, A, TV1) = AS [A, TV1, defaultAV] [owise] .
   
@@ -232,7 +232,7 @@ fmod OC-ATOM-SPACE is
   eq ocSize(emptyAS) = 0 .
   eq ocSize(AA AS) = 1 + ocSize(AS) .
 
-  *** (Phase 1.2) getAtomList: enumerate all atoms in the AtomSpace
+  *** [Phase 1.2] getAtomList: enumerate all atoms in the AtomSpace
   eq getAtomList(emptyAS) = nil .
   eq getAtomList([A, TV, AV] AS) = A, getAtomList(AS) .
   

@@ -31,7 +31,7 @@ fmod OC-URE-RULE-BASE is
   op addRule : URRuleBase URRule -> URRuleBase .
   op removeRule : URRuleBase String -> URRuleBase .
 
-  *** (Phase 2.3) Highest-weight rule selection
+  *** [Phase 2.3] Highest-weight rule selection
   op maxWeightRule : URRuleBase -> URRule .
   op maxWeightRuleAux : URRuleBase URRule -> URRule .
 
@@ -54,7 +54,7 @@ fmod OC-URE-RULE-BASE is
   eq removeRule(urRule(RN, RW, RL) ;; RB, RN) = RB .
   eq removeRule(RB, RN) = RB [owise] .
 
-  *** (Phase 2.3) Return the rule with the highest weight
+  *** [Phase 2.3] Return the rule with the highest weight
   eq maxWeightRule(R ;; RB) = maxWeightRuleAux(RB, R) .
   eq maxWeightRule(R) = R .
   eq maxWeightRuleAux(emptyRB, R) = R .
@@ -219,7 +219,7 @@ mod OC-URE-BACKWARD-CHAINER is
         MaxD, CurD)
     if tvConfidence(TV) > 0.0 .
 
-  *** (Phase 2.4) BC Modus-Ponens decomposition:
+  *** [Phase 2.4] BC Modus-Ponens decomposition:
   *** Goal B decomposes into subgoals A and A→B
   *** bcPremisePlaceholder is a sentinel concept node used as a wildcard
   *** premise when no specific antecedent is yet known.

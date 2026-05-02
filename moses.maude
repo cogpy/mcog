@@ -251,6 +251,7 @@ fmod OC-MOSES-FITNESS is
   protecting OC-COMBO-EVAL .
   protecting OC-MOSES-POPULATION .
   protecting NAT .
+  protecting CONVERSION .
 
   *** A single labelled training example: (input environment, expected output)
   sort DataPoint .

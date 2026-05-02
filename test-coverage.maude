@@ -300,7 +300,7 @@ red in OC-PLN-FORMULAS : plnNotIntro(1.0, 0.9) .
 *** =================================================================
 
 *** Induction: poodle→dog, poodle→fluffy  ⊢  dog→fluffy
-search [1] in OC-PLN-RULES :
+search [1, 1] in OC-PLN-RULES :
   [concept("poodle"), stv(0.6, 0.8), defaultAV]
   [concept("dog"), stv(0.5, 0.7), defaultAV]
   [concept("fluffy"), stv(0.4, 0.6), defaultAV]
@@ -311,7 +311,7 @@ such that
   hasAtom(AS:AtomSpace, inheritance(concept("dog"), concept("fluffy"))) == true .
 
 *** Similarity-to-Inheritance
-search [1] in OC-PLN-RULES :
+search [1, 1] in OC-PLN-RULES :
   [concept("human"), stv(0.5, 0.8), defaultAV]
   [concept("person"), stv(0.5, 0.8), defaultAV]
   [similarity(concept("human"), concept("person")), stv(0.95, 0.9), defaultAV]
@@ -320,7 +320,7 @@ such that
   hasAtom(AS:AtomSpace, inheritance(concept("human"), concept("person"))) == true .
 
 *** Inheritance-to-Member
-search [1] in OC-PLN-RULES :
+search [1, 1] in OC-PLN-RULES :
   [inheritance(concept("fido"), concept("dog")), stv(0.9, 0.8), defaultAV]
 =>+ AS:AtomSpace
 such that
@@ -351,28 +351,28 @@ red in OC-ECAN-CONFIG : forgettingThreshold(defaultECANParams) .
 *** expect: -400
 
 *** Stimulation: STI increases by 50
-search [1] in OC-ECAN :
+search [1, 1] in OC-ECAN :
   [concept("cat"), stv(0.8, 0.9), av(100, 50, false)]
 =>+ AS:AtomSpace
 such that
   getAV(AS, concept("cat")) == av(150, 50, false) .
 
 *** Rent collection: STI decreases by 1 when STI > 0 and not VLTI
-search [1] in OC-ECAN :
+search [1, 1] in OC-ECAN :
   [concept("cat"), stv(0.8, 0.9), av(10, 50, false)]
 =>+ AS:AtomSpace
 such that
   getSTI(getAV(AS, concept("cat"))) == 9 .
 
 *** Forgetting: atom removed when STI < -400 and not VLTI
-search [1] in OC-ECAN :
+search [1, 1] in OC-ECAN :
   [concept("old-idea"), stv(0.5, 0.5), av(-500, 0, false)]
 =>+ AS:AtomSpace
 such that
   hasAtom(AS, concept("old-idea")) == false .
 
 *** Asymmetric Hebbian spreading: source loses STI, target gains
-search [1] in OC-ECAN :
+search [1, 1] in OC-ECAN :
   [asymHebbian(concept("cat"), concept("animal")), stv(0.8, 0.9), defaultAV]
   [concept("cat"), stv(1.0, 0.9), av(200, 50, false)]
   [concept("animal"), stv(1.0, 0.9), av(10, 50, false)]
@@ -381,7 +381,7 @@ such that
   getSTI(getAV(AS, concept("animal"))) > 10 .
 
 *** LTI update: atom in attentional focus (STI > 100) gains LTI
-search [1] in OC-ECAN :
+search [1, 1] in OC-ECAN :
   [concept("important"), stv(0.8, 0.9), av(200, 0, false)]
 =>+ AS:AtomSpace
 such that
@@ -462,13 +462,13 @@ red in OC-MOSES-POPULATION : bestScore(emptyDeme) .
 *** expect: -1.0e10
 
 *** Mutation: And → Or
-search [1] in OC-MOSES-EVOLVE :
+search [1, 1] in OC-MOSES-EVOLVE :
   scored(comboAnd(boolVar(0), boolVar(1)), 0.8)
 =>+ SP:ScoredProgram
 such that SP:ScoredProgram == scored(comboOr(boolVar(0), boolVar(1)), 0.0) .
 
 *** Mutation: remove double negation
-search [1] in OC-MOSES-EVOLVE :
+search [1, 1] in OC-MOSES-EVOLVE :
   scored(comboNot(boolVar(0)), 0.5)
 =>+ SP:ScoredProgram
 such that SP:ScoredProgram == scored(boolVar(0), 0.0) .
@@ -533,13 +533,13 @@ red in OPENCOG :
 *** expect: concept("cat")
 
 *** CogServer cycle rotation
-search [1] in OC-COG-SERVER :
+search [1, 1] in OC-COG-SERVER :
   cogServer(emptyAS, plnAgent -> ecanAgent -> mosesAgent, emptyRB, 0)
 =>+ CS:CogServerState
 such that csCycle(CS:CogServerState) == 1 .
 
 *** Forward chaining: modus ponens derives concept("flood")
-search [1] in OC-URE-FORWARD-CHAINER :
+search [1, 1] in OC-URE-FORWARD-CHAINER :
   fcState(
     [concept("rain"), stv(0.9, 0.85), defaultAV]
     [implication(concept("rain"), concept("flood")), stv(0.8, 0.9), defaultAV],
@@ -586,7 +586,7 @@ red in OC-PATTERN-MATCHER :
 load pattern-matcher.maude
 
 *** MeetLink: produces setLink containing the matched ground atom
-search [1] in OC-GRAPH-MATCH :
+search [1, 1] in OC-GRAPH-MATCH :
   [meet((variable("X"), nil),
         inheritance(variable("X"), concept("animal"))),
    stv(1.0, 0.9), defaultAV]
@@ -596,7 +596,7 @@ such that
   hasAtom(AS, setLink(inheritance(concept("cat"), concept("animal")))) == true .
 
 *** SatisfactionLink: truth value updated to stv(1.0, 1.0) when match exists
-search [1] in OC-GRAPH-MATCH :
+search [1, 1] in OC-GRAPH-MATCH :
   [satisfaction((variable("X"), nil),
                 inheritance(variable("X"), concept("animal"))),
    stv(0.5, 0.5), defaultAV]
@@ -817,7 +817,7 @@ red in OC-SPATIAL :
 *** expect: false
 
 *** Temporal overlap: creates attraction link
-search [1] in OC-TEMPORAL-REASONING :
+search [1, 1] in OC-TEMPORAL-REASONING :
   [atTimeLink(concept("A"), timeIntervalNode(1, 6)), stv(0.9, 0.8), defaultAV]
   [atTimeLink(concept("B"), timeIntervalNode(4, 9)), stv(0.9, 0.8), defaultAV]
   [implication(concept("A"), concept("B")), stv(0.8, 0.7), defaultAV]
@@ -826,7 +826,7 @@ such that
   hasAtom(AS:AtomSpace, attraction(concept("A"), concept("B"))) == true .
 
 *** Temporal simultaneous: creates similarity link
-search [1] in OC-TEMPORAL-REASONING :
+search [1, 1] in OC-TEMPORAL-REASONING :
   [atTimeLink(concept("X"), timeIntervalNode(5, 10)), stv(0.8, 0.7), defaultAV]
   [atTimeLink(concept("Y"), timeIntervalNode(5, 10)), stv(0.8, 0.7), defaultAV]
 =>+ AS:AtomSpace
@@ -894,7 +894,7 @@ red in OC-GHOST :
 *** expect: "hello"
 
 *** Psi demand increase: urgency rises toward target
-search [1] in OC-OPENPSI-ENGINE :
+search [1, 1] in OC-OPENPSI-ENGINE :
   psiState(
     emptyAS,
     psiDemand("energy", 0.3, 0.9) ;; emptyDemands,
@@ -907,7 +907,7 @@ search [1] in OC-OPENPSI-ENGINE :
 such that psiCycle(PS:PsiState) == 1 .
 
 *** Ghost gambit: proactive utterance added to AtomSpace
-search [1] in OC-OPENPSI-ENGINE :
+search [1, 1] in OC-OPENPSI-ENGINE :
   psiState(
     emptyAS,
     emptyDemands,
@@ -1001,7 +1001,7 @@ red in OC-SELF-MODIFY : hasType(emptyDTR, "NonExistentType") .
 *** expect: false
 
 *** register-type rewrite rule
-search [1] in OC-SELF-MODIFY :
+search [1, 1] in OC-SELF-MODIFY :
   selfModState(
     [defineLink(typeNode("MyNode"), typeNode("ConceptNode")), stv(1.0, 0.9), defaultAV],
     emptyDTR,
@@ -1073,7 +1073,7 @@ red in OC-ARITH-EVAL : evalArithAtom(divideLink(number("10"), number("2"))) .
 *** =================================================================
 
 *** SequentialAnd splits into its first step (reachable from search)
-search [1] in OC-EXECUTION-ENGINE :
+search [1, 1] in OC-EXECUTION-ENGINE :
   [seqAnd((concept("step1"), concept("step2"), nil)), stv(1.0, 0.9), defaultAV]
 =>+ AS:AtomSpace
 such that hasAtom(AS, concept("step1")) == true .
