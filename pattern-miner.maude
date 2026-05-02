@@ -158,6 +158,7 @@ endfm
 fmod OC-SURPRISINGNESS is
   protecting OC-PATTERN-GEN .
   protecting FLOAT .
+  protecting CONVERSION .
 
   *** I-Surprisingness: how much more frequent is the pattern
   *** than expected by independence assumption
@@ -215,7 +216,7 @@ mod OC-PATTERN-MINER is
   *** =============================================================
 
   *** Mine inheritance patterns
-  *** (Phase 3.4) After mining, also inject a PLN InheritanceLink into the AS
+  *** [Phase 3.4] After mining, also inject a PLN InheritanceLink into the AS
   *** with TV derived from support fraction (strength) and surprisingness (confidence).
   crl [mine-inh-pattern] :
       minerState(

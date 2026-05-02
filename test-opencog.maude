@@ -129,7 +129,7 @@ red in OC-PLN-FORMULAS :
 *** TEST 6: PLN Deduction (Rewrite Rule Search)
 *** =================================================================
 
-search [1] in OC-PLN-RULES :
+search [1, 1] in OC-PLN-RULES :
   [concept("cat"), stv(1.0, 0.9), defaultAV]
   [concept("animal"), stv(1.0, 0.9), defaultAV]
   [concept("living-thing"), stv(1.0, 0.9), defaultAV]
@@ -143,7 +143,7 @@ such that
 *** TEST 7: PLN Modus Ponens (Rewrite Rule Search)
 *** =================================================================
 
-search [1] in OC-PLN-RULES :
+search [1, 1] in OC-PLN-RULES :
   [concept("it-rains"), stv(0.9, 0.85), defaultAV]
   [implication(concept("it-rains"), concept("wet-ground")), stv(0.95, 0.9), defaultAV]
 =>+ AS:AtomSpace
@@ -279,7 +279,7 @@ red in OPENCOG :
 *** TEST 14: Forward Chaining
 *** =================================================================
 
-search [1] in OC-URE-FORWARD-CHAINER :
+search [1, 1] in OC-URE-FORWARD-CHAINER :
   fcState(
     [concept("cat"), stv(1.0, 0.9), defaultAV]
     [concept("animal"), stv(1.0, 0.9), defaultAV]

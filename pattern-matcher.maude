@@ -210,7 +210,7 @@ mod OC-GRAPH-MATCH is
       AS
     if unifyOk(Sub) := unify(Pat, A) .
 
-  *** (Phase 2.2) Multi-clause BindLink matching via AndLink pattern.
+  *** [Phase 2.2] Multi-clause BindLink matching via AndLink pattern.
   *** BindLink(Vars, AndLink(Clause1, Clause2, …), Rewrite) — each clause
   *** is matched in sequence, threading the substitution through.
   crl [bind-match-and-clause] :

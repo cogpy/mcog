@@ -62,7 +62,7 @@ mod OC-COG-SERVER-FULL is
                     recordAttempt(ARS, stepName(SS)), N + 1)
     if true .
 
-  *** (Phase 3.1) Strategy switching: rotate when dominant step underperforms
+  *** [Phase 3.1] Strategy switching: rotate when dominant step underperforms
   crl [csf-switch-strategy] :
       cogServerFull(AS, AQ, RB, SS >>> IS, ARS, N)
     =>

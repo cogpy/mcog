@@ -16,6 +16,13 @@ fmod OC-ECAN-CONFIG is
   protecting INT .
   protecting FLOAT .
   protecting BOOL .
+  protecting CONVERSION .
+  protecting RAT .
+
+  *** round : Float -> Int  (not in Maude's built-in library)
+  op round : Float -> Int .
+  var RF : Float .
+  eq round(RF) = floor(rat(RF) + 1/2) .
 
   sort ECANParams .
   
@@ -48,6 +55,8 @@ endfm
 mod OC-ECAN is
   protecting OC-ECAN-CONFIG .
   protecting OC-ATOM-SPACE-QUERY .
+  protecting CONVERSION .
+  protecting RAT .
 
   vars A A1 A2 : OcAtom .
   vars STI1 STI2 LTI1 LTI2 Delta : Int .
@@ -62,7 +71,7 @@ mod OC-ECAN is
   vars I1 I2 : Int .
   eq maxInt(I1, I2) = if I1 >= I2 then I1 else I2 fi .
 
-  *** (Phase 2.6) Total STI across all atoms in the AtomSpace
+  *** [Phase 2.6] Total STI across all atoms in the AtomSpace
   op totalSTI : AtomSpace -> Int .
   var AA : AnnotatedAtom .
   var STI LTI : Int .
@@ -70,7 +79,7 @@ mod OC-ECAN is
   eq totalSTI(emptyAS) = 0 .
   eq totalSTI([A, TV, av(STI, LTI, VB)] AS) = STI + totalSTI(AS) .
 
-  *** (Phase 2.6) Normalise STIs when total exceeds budget
+  *** [Phase 2.6] Normalise STIs when total exceeds budget
   *** Scale all STIs proportionally so their sum equals Budget.
   op normalizeSTI : AtomSpace Int -> AtomSpace .
   op normalizeSTIAux : AtomSpace Float -> AtomSpace .

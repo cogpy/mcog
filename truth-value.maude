@@ -129,13 +129,13 @@ fmod OC-TRUTH-VALUE is
   eq tvOr(stv(S1, C1), stv(S2, C2)) = 
      stv(clamp01(1.0 - (1.0 - S1) * (1.0 - S2)), clamp01(min(C1, C2))) .
 
-  *** (Phase 1.1) Extended truth value arithmetic for ctv and itv.
+  *** [Phase 1.1] Extended truth value arithmetic for ctv and itv.
   *** tvNegate for CountTruthValue (preserves count)
   eq tvNegate(ctv(S, C, N)) = ctv(clamp01(1.0 - S), C, N) .
   *** tvNegate for IndefiniteTruthValue (flips interval)
   eq tvNegate(itv(L, U, C)) = itv(clamp01(1.0 - U), clamp01(1.0 - L), C) .
 
-  *** (Phase 1.1) tvRevision for CountTruthValue: use counts directly
+  *** [Phase 1.1] tvRevision for CountTruthValue: use counts directly
   ceq tvRevision(ctv(S1, C1, N1), ctv(S2, C2, N2)) =
       stv(clamp01(
             if N1 + N2 > 0.0
@@ -144,7 +144,7 @@ fmod OC-TRUTH-VALUE is
           clamp01(countToConf(N1 + N2)))
     if true .
 
-  *** (Phase 1.1) General tvRevision / tvAnd / tvOr for mixed or itv types:
+  *** [Phase 1.1] General tvRevision / tvAnd / tvOr for mixed or itv types:
   *** project to (strength, confidence) and use the stv formula
   eq tvRevision(TV1X, TV2X) =
      tvRevision(stv(tvStrength(TV1X), tvConfidence(TV1X)),

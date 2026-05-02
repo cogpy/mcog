@@ -107,7 +107,7 @@ mod OC-PLN-RULES is
   var AS : AtomSpace .
 
   *** DEDUCTION: A → B, B → C  ⊢  A → C
-  *** (Phase 1.3) Guard: skip if A→C already known, preventing duplicate derivation.
+  *** [Phase 1.3] Guard: skip if A→C already known, preventing duplicate derivation.
   crl [pln-deduction] :
       [inheritance(A, B), stv(SAB, CAB), AV1]
       [inheritance(B, C), stv(SBC, CBC), AV2]
@@ -146,7 +146,7 @@ mod OC-PLN-RULES is
     if CA > 0.0 /\ CAB > 0.0 .
 
   *** INDUCTION: A → B, A → C  ⊢  B → C
-  *** (Phase 1.3) Minimum confidence threshold (0.1) prevents weak-evidence chains.
+  *** [Phase 1.3] Minimum confidence threshold (0.1) prevents weak-evidence chains.
   crl [pln-induction] :
       [inheritance(A, B), stv(SAB, CAB), AV1]
       [inheritance(A, C), stv(SAC, CAC), AV2]
@@ -167,7 +167,7 @@ mod OC-PLN-RULES is
     if CAB > 0.0 /\ CAC > 0.0 /\ B =/= C /\ CAB >= 0.1 /\ CAC >= 0.1 .
 
   *** ABDUCTION: A → C, B → C  ⊢  A → B
-  *** (Phase 1.3) Minimum confidence threshold (0.1) prevents weak-evidence chains.
+  *** [Phase 1.3] Minimum confidence threshold (0.1) prevents weak-evidence chains.
   crl [pln-abduction] :
       [inheritance(A, C), stv(SAC, CAC), AV1]
       [inheritance(B, C), stv(SBC, CBC), AV2]

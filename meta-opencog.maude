@@ -266,6 +266,7 @@ endfm
 mod OC-SELF-MODIFY is
   protecting OC-INFERENCE-MONITOR .
   protecting OC-URE-RULE-BASE .
+  protecting CONVERSION .
 
   *** Record of dynamically created types
   sort DynType .
@@ -297,6 +298,7 @@ mod OC-SELF-MODIFY is
   var AV : OcAttentionValue .
   var DT : DynType .
   var RAR : RuleAppRecord .
+  vars NS NA : Nat .
 
   eq smAS(selfModState(AS, DTR, ARS, RB, N))      = AS .
   eq smTypes(selfModState(AS, DTR, ARS, RB, N))   = DTR .
@@ -304,7 +306,7 @@ mod OC-SELF-MODIFY is
   eq smRB(selfModState(AS, DTR, ARS, RB, N))      = RB .
   eq smCycle(selfModState(AS, DTR, ARS, RB, N))   = N .
 
-  *** (Phase 4.2) Register a new dynamic type AND inject an inheritance
+  *** [Phase 4.2] Register a new dynamic type AND inject an inheritance
   *** rule into the URE rule base so it can be used immediately.
   rl [register-type] :
       selfModState(
@@ -316,7 +318,7 @@ mod OC-SELF-MODIFY is
         dynType(TypeName, ParentType) ;; DTR,
         ARS,
         addRule(RB,
-          urRule(TypeName ++ "-inherits-" ++ ParentType, 0.7,
+          urRule(TypeName + "-inherits-" + ParentType, 0.7,
                  "pln-deduction")),
         N + 1) .
 
@@ -330,7 +332,7 @@ mod OC-SELF-MODIFY is
   eq hasType(dynType(TypeName, ParentType) ;; DTR, TypeName) = true .
   eq hasType(DTR, TypeName) = false [owise] .
 
-  *** (Phase 4.3) adapt-strategy: remove a rule from the rule base if its
+  *** [Phase 4.3] adapt-strategy: remove a rule from the rule base if its
   *** success rate is below 0.1 and it has been attempted ≥ 10 times.
   crl [adapt-strategy] :
       selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS, RB, N)
@@ -340,7 +342,7 @@ mod OC-SELF-MODIFY is
     if NA >= 10
     /\ (if NA == 0 then 0.0 else float(NS) / float(NA) fi) < 0.1 .
 
-  *** (Phase 4.3) promote-rule: boost the weight of a high-performing rule
+  *** [Phase 4.3] promote-rule: boost the weight of a high-performing rule
   *** if it is below the cap of 1.0.
   crl [promote-rule] :
       selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS,
