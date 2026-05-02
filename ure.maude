@@ -221,6 +221,11 @@ mod OC-URE-BACKWARD-CHAINER is
 
   *** (Phase 2.4) BC Modus-Ponens decomposition:
   *** Goal B decomposes into subgoals A and A→B
+  *** bcPremisePlaceholder is a sentinel concept node used as a wildcard
+  *** premise when no specific antecedent is yet known.
+  op bcPremisePlaceholder : -> ConceptNode .
+  eq bcPremisePlaceholder = concept("$bc-premise") .
+
   crl [bc-modus-ponens-decompose] :
       bcState(
         AS,
@@ -231,11 +236,10 @@ mod OC-URE-BACKWARD-CHAINER is
       bcState(
         AS,
         RB,
-        A >> implication(A, B) >> Goals,
+        bcPremisePlaceholder >> implication(bcPremisePlaceholder, B) >> Goals,
         MaxD, CurD + 1)
     if CurD < MaxD
-    /\ not hasAtom(AS, B)
-    /\ A := concept("$bc-premise") .
+    /\ not hasAtom(AS, B) .
 
 endm
 
