@@ -1,0 +1,214 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-NARROWING-ABDUCE Module
+***  
+***  Abductive reasoning via Maude's built-in narrowing.
+***  
+***  Narrowing = unification + rewriting = symbolic execution.
+***  Given a GOAL state, narrowing computes ALL possible initial
+***  states that could reach that goal — this IS abduction.
+***  
+***  Traditional OpenCog abduction is heuristic (PLN abduction rule
+***  with hand-tuned formulas). Maude narrowing gives us COMPLETE
+***  symbolic abduction modulo equational theories.
+***  
+***  Applications:
+***  - Explanation generation: "Why does the system believe X?"
+***  - Hypothesis formation: "What could cause observation Y?"
+***  - Plan synthesis: "What actions lead to goal state G?"
+***  - Counterfactual reasoning: "What if premise P were false?"
+***  
+***  Based on: Maude vu-narrow + OpenCog abductive inference
+*** ================================================================ )
+
+*** =================================================================
+*** NARROWING-READY KNOWLEDGE BASE
+*** (Must use constructor-based terms for narrowing to work)
+*** =================================================================
+
+mod OC-NARROW-KB is
+  protecting STRING .
+  protecting FLOAT .
+  protecting NAT .
+
+  *** Simplified atom sorts for narrowing
+  sort NAtom .
+  sort NAtomSet .
+  subsort NAtom < NAtomSet .
+  
+  op emptyN : -> NAtomSet [ctor] .
+  op __ : NAtomSet NAtomSet -> NAtomSet [ctor assoc comm id: emptyN] .
+
+  *** Nodes
+  op c : String -> NAtom [ctor] .   *** concept
+  op p : String -> NAtom [ctor] .   *** predicate
+  op n : String -> NAtom [ctor] .   *** number
+  
+  *** Links (with truth value strength)
+  op inh : NAtom NAtom Float -> NAtom [ctor] .   *** inheritance
+  op imp : NAtom NAtom Float -> NAtom [ctor] .   *** implication
+  op sim : NAtom NAtom Float -> NAtom [ctor] .   *** similarity
+  op mem : NAtom NAtom Float -> NAtom [ctor] .   *** member
+  op eval : NAtom NAtom Float -> NAtom [ctor] .  *** evaluation
+
+  *** Knowledge base state
+  sort KBState .
+  op kb : NAtomSet Nat -> KBState [ctor] .
+  
+  op kbAtoms : KBState -> NAtomSet .
+  op kbStep : KBState -> Nat .
+  
+  var NAS : NAtomSet .
+  var Step : Nat .
+  
+  eq kbAtoms(kb(NAS, Step)) = NAS .
+  eq kbStep(kb(NAS, Step)) = Step .
+
+  ***( =============================================================
+      INFERENCE RULES (narrowing-compatible)
+      These rules can be run FORWARD (deduction) or BACKWARD
+      (abduction) using Maude's vu-narrow command.
+  ============================================================= )
+
+  vars A B C D : NAtom .
+  vars V V2 V3 : Float .
+  var N : Nat .
+
+  *** Deduction: inh(A,B) + inh(B,C) => inh(A,C)
+  crl [deduce] :
+      kb(inh(A, B, V) inh(B, C, V2) NAS, N)
+    =>
+      kb(inh(A, B, V) inh(B, C, V2) inh(A, C, V * V2) NAS, N + 1)
+    if V * V2 > 0.1 .
+
+  *** Modus Ponens: imp(A,B) + A => B
+  crl [modus-ponens] :
+      kb(imp(A, B, V) A NAS, N)
+    =>
+      kb(imp(A, B, V) A B NAS, N + 1)
+    if V > 0.5 .
+
+  *** Similarity to Inheritance: sim(A,B) => inh(A,B) + inh(B,A)
+  crl [sim2inh] :
+      kb(sim(A, B, V) NAS, N)
+    =>
+      kb(sim(A, B, V) inh(A, B, V) inh(B, A, V) NAS, N + 1)
+    if V > 0.3 .
+
+  *** Member to Inheritance: mem(A,B) => inh(A,B) (instance-of)
+  crl [mem2inh] :
+      kb(mem(A, B, V) NAS, N)
+    =>
+      kb(mem(A, B, V) inh(A, B, V) NAS, N + 1)
+    if V > 0.5 .
+
+  *** Transitivity of implication
+  crl [imp-trans] :
+      kb(imp(A, B, V) imp(B, C, V2) NAS, N)
+    =>
+      kb(imp(A, B, V) imp(B, C, V2) imp(A, C, V * V2) NAS, N + 1)
+    if V * V2 > 0.1 .
+
+endm
+
+*** =================================================================
+*** ABDUCTIVE REASONING INTERFACE
+*** =================================================================
+
+mod OC-ABDUCTION is
+  protecting OC-NARROW-KB .
+
+  *** Abductive query result
+  sort AbductiveResult .
+  op abResult : NAtomSet Nat -> AbductiveResult [ctor] .
+  op noExplanation : -> AbductiveResult [ctor] .
+
+  *** Explanation strength
+  sort Explanation .
+  op explanation : NAtomSet Float Nat -> Explanation [ctor] .
+  ***              premises  strength  steps
+  
+  op expPremises : Explanation -> NAtomSet .
+  op expStrength : Explanation -> Float .
+  op expSteps : Explanation -> Nat .
+  
+  var NAS : NAtomSet .
+  var F : Float .
+  var N : Nat .
+  
+  eq expPremises(explanation(NAS, F, N)) = NAS .
+  eq expStrength(explanation(NAS, F, N)) = F .
+  eq expSteps(explanation(NAS, F, N)) = N .
+
+  *** =============================================================
+  *** USAGE: Abductive reasoning via vu-narrow
+  ***
+  *** To find explanations for WHY inh(cat, living-thing) holds:
+  ***
+  ***   vu-narrow [5] in OC-NARROW-KB :
+  ***     kb(X:NAtomSet, 0)
+  ***   =>* kb(inh(c("cat"), c("living-thing"), V:Float) Y:NAtomSet, N:Nat) .
+  ***
+  *** This returns all initial knowledge bases X:NAtomSet that can
+  *** derive inh(cat, living-thing) in at most 5 narrowing steps.
+  ***
+  *** Each solution gives a SYMBOLIC SUBSTITUTION showing what
+  *** premises are needed — this is COMPLETE abduction.
+  ***
+  *** For counterfactual reasoning:
+  ***
+  ***   vu-narrow [3] in OC-NARROW-KB :
+  ***     kb(imp(c("rain"), c("wet"), 0.9) X:NAtomSet, 0)
+  ***   =>* kb(c("wet") Y:NAtomSet, N:Nat) .
+  ***
+  *** "Given that rain implies wet, what else is needed to derive wet?"
+  *** Answer: c("rain") must be in X:NAtomSet (via modus ponens).
+  *** =============================================================
+
+endm
+
+*** =================================================================
+*** PLAN SYNTHESIS VIA NARROWING
+*** =================================================================
+
+mod OC-PLAN-SYNTHESIS is
+  protecting OC-ABDUCTION .
+
+  *** Action representation
+  sort Action .
+  op act : String NAtom -> Action [ctor] .
+  
+  sort ActionSeq .
+  subsort Action < ActionSeq .
+  op nilAct : -> ActionSeq [ctor] .
+  op _>>_ : ActionSeq ActionSeq -> ActionSeq [ctor assoc id: nilAct] .
+
+  *** Planning state: KB + action history
+  sort PlanState .
+  op planState : NAtomSet ActionSeq Nat -> PlanState [ctor] .
+
+  var NAS : NAtomSet .
+  var ASeq : ActionSeq .
+  var N : Nat .
+  vars A B : NAtom .
+  vars V : Float .
+  var S : String .
+
+  *** Actions modify the KB
+  crl [plan-act] :
+      planState(imp(c(S), B, V) c(S) NAS, ASeq, N)
+    =>
+      planState(imp(c(S), B, V) c(S) B NAS, ASeq >> act(S, B), N + 1)
+    if V > 0.5 .
+
+  *** =============================================================
+  *** USAGE: Plan synthesis via narrowing
+  ***
+  ***   vu-narrow [3] in OC-PLAN-SYNTHESIS :
+  ***     planState(X:NAtomSet, nilAct, 0)
+  ***   =>* planState(c("goal") Y:NAtomSet, Z:ActionSeq, N:Nat) .
+  ***
+  *** "What initial state and action sequence leads to the goal?"
+  *** Returns symbolic plans with their preconditions.
+  *** =============================================================
+
+endm

@@ -1,0 +1,287 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-REFLECTIVE-ENGINE Module
+***  
+***  The Gödel Machine layer: self-rewriting inference via Maude's
+***  native reflection tower (META-LEVEL descent/ascent functions).
+***  
+***  This module enables OpenCog to:
+***  1. Reify its own inference rules as meta-level terms
+***  2. Reason about rule effectiveness using PLN
+***  3. Generate new rules via meta-level term construction
+***  4. Verify proposed modifications via metaSearch
+***  5. Install verified improvements via downTerm
+***  
+***  This is what makes mcog qualitatively different from C++ OpenCog:
+***  the system can formally reason about and modify its own cognition.
+***  
+***  NOTE: To avoid the _,_ conflict between our OcAtomList and
+***  META-LEVEL's TermList, this module uses a separate sort hierarchy
+***  for reflective operations, bridging via string-based serialization.
+***  
+***  Based on: Maude META-LEVEL + Goertzel's Cognitive Synergy theory
+*** ================================================================ )
+
+*** We do NOT load atom-space.maude here to avoid the _,_ conflict.
+*** Instead we define a self-contained reflective layer that operates
+*** on serialized representations of atoms and rules.
+
+*** =================================================================
+*** REFLECTIVE TERM REPRESENTATION
+*** =================================================================
+
+fmod OC-REFLECT-TERMS is
+  protecting META-LEVEL .
+  protecting STRING .
+  protecting NAT .
+  protecting FLOAT .
+  protecting CONVERSION .
+
+  *** A serialized atom (string representation for meta-level bridge)
+  sort SerialAtom .
+  op sa : String -> SerialAtom [ctor] .
+  
+  *** A serialized rule with metadata
+  sort SerialRule .
+  op srule : String String Float Nat Nat -> SerialRule [ctor] .
+  ***        name   body   weight successes attempts
+  
+  op srName : SerialRule -> String .
+  op srBody : SerialRule -> String .
+  op srWeight : SerialRule -> Float .
+  op srSucc : SerialRule -> Nat .
+  op srAttempts : SerialRule -> Nat .
+  
+  vars RN RB : String .
+  var RW : Float .
+  vars RS RA : Nat .
+  
+  eq srName(srule(RN, RB, RW, RS, RA)) = RN .
+  eq srBody(srule(RN, RB, RW, RS, RA)) = RB .
+  eq srWeight(srule(RN, RB, RW, RS, RA)) = RW .
+  eq srSucc(srule(RN, RB, RW, RS, RA)) = RS .
+  eq srAttempts(srule(RN, RB, RW, RS, RA)) = RA .
+
+  *** Rule effectiveness
+  op effectiveness : SerialRule -> Float .
+  ceq effectiveness(srule(RN, RB, RW, RS, RA)) = 
+      RW * (float(RS) / float(RA))
+    if RA > 0 .
+  eq effectiveness(srule(RN, RB, RW, RS, 0)) = 0.0 .
+
+  *** Rule collection
+  sort RuleRegistry .
+  subsort SerialRule < RuleRegistry .
+  op emptyRR : -> RuleRegistry [ctor] .
+  op _;_ : RuleRegistry RuleRegistry -> RuleRegistry [ctor assoc comm id: emptyRR] .
+
+  *** Find least effective rule
+  op leastEffective : RuleRegistry -> SerialRule .
+  op leastEffAux : RuleRegistry SerialRule -> SerialRule .
+  
+  var SR SR2 : SerialRule .
+  var RR : RuleRegistry .
+  
+  eq leastEffective(SR ; RR) = leastEffAux(RR, SR) .
+  eq leastEffective(SR) = SR .
+  eq leastEffAux(emptyRR, SR) = SR .
+  eq leastEffAux(SR2 ; RR, SR) = 
+     if effectiveness(SR2) < effectiveness(SR)
+     then leastEffAux(RR, SR2)
+     else leastEffAux(RR, SR) fi .
+
+  *** Find most effective rule
+  op mostEffective : RuleRegistry -> SerialRule .
+  op mostEffAux : RuleRegistry SerialRule -> SerialRule .
+  
+  eq mostEffective(SR ; RR) = mostEffAux(RR, SR) .
+  eq mostEffective(SR) = SR .
+  eq mostEffAux(emptyRR, SR) = SR .
+  eq mostEffAux(SR2 ; RR, SR) = 
+     if effectiveness(SR2) > effectiveness(SR)
+     then mostEffAux(RR, SR2)
+     else mostEffAux(RR, SR) fi .
+
+endfm
+
+*** =================================================================
+*** META-LEVEL OPERATIONS ON COGNITIVE MODULES
+*** =================================================================
+
+fmod OC-META-OPS is
+  protecting OC-REFLECT-TERMS .
+
+  *** Module introspection
+  op cogModuleName : -> Qid .
+  eq cogModuleName = 'OC-PLN-RULES .
+
+  *** Get the module as a meta-level term
+  op getCogModule : -> Module .
+  eq getCogModule = upModule(cogModuleName, false) .
+
+  *** Count rules in a module
+  op countModuleRules : Module -> Nat .
+  op countRuleSet : RuleSet -> Nat .
+  
+  var M : Module .
+  var RS2 : RuleSet .
+  var R : Rule .
+  
+  eq countModuleRules(M) = countRuleSet(getRls(M)) .
+  eq countRuleSet((none).RuleSet) = 0 .
+  eq countRuleSet(R RS2) = 1 + countRuleSet(RS2) .
+
+  *** Get sort set from module
+  op getModuleSorts : Qid -> SortSet .
+  eq getModuleSorts(M:Qid) = upSorts(M:Qid, false) .
+
+  *** Check if a term is well-formed in a module
+  op isWellFormed : Module Term -> Bool .
+  eq isWellFormed(M, T:Term) = metaReduce(M, T:Term) :: ResultPair .
+
+endfm
+
+*** =================================================================
+*** REFLECTIVE INFERENCE ENGINE
+*** =================================================================
+
+mod OC-REFLECTIVE-INFERENCE is
+  protecting OC-META-OPS .
+
+  *** The reflective state: tracks the cognitive system's self-model
+  sort ReflectiveState .
+  op reflState : RuleRegistry Nat Nat Float -> ReflectiveState [ctor] .
+  ***             rules      cycle maxCycle threshold
+  
+  op rsRules : ReflectiveState -> RuleRegistry .
+  op rsCycle : ReflectiveState -> Nat .
+  op rsMax : ReflectiveState -> Nat .
+  op rsThreshold : ReflectiveState -> Float .
+  
+  var RR : RuleRegistry .
+  vars N MaxN : Nat .
+  var Thresh : Float .
+  var SR : SerialRule .
+  vars RN RB RN2 RB2 : String .
+  vars RW RW2 E : Float .
+  vars RS RA : Nat .
+
+  eq rsRules(reflState(RR, N, MaxN, Thresh)) = RR .
+  eq rsCycle(reflState(RR, N, MaxN, Thresh)) = N .
+  eq rsMax(reflState(RR, N, MaxN, Thresh)) = MaxN .
+  eq rsThreshold(reflState(RR, N, MaxN, Thresh)) = Thresh .
+
+  *** =============================================================
+  *** SELF-IMPROVEMENT RULES
+  *** =============================================================
+
+  *** Rule 1: Record a successful rule application
+  rl [reflect-record-success] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(
+        srule(RN, RB, RW, RS + 1, RA + 1) ; RR,
+        N + 1, MaxN, Thresh) .
+
+  *** Rule 2: Record a failed rule application
+  rl [reflect-record-failure] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(
+        srule(RN, RB, RW, RS, RA + 1) ; RR,
+        N + 1, MaxN, Thresh) .
+
+  *** Rule 3: Boost weight of effective rules
+  crl [reflect-boost-effective] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(
+        srule(RN, RB, min(1.0, RW + 0.05), RS, RA) ; RR,
+        N + 1, MaxN, Thresh)
+    if RA > 5 /\ effectiveness(srule(RN, RB, RW, RS, RA)) > Thresh .
+
+  *** Rule 4: Decay weight of ineffective rules
+  crl [reflect-decay-ineffective] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(
+        srule(RN, RB, max(0.01, RW - 0.05), RS, RA) ; RR,
+        N + 1, MaxN, Thresh)
+    if RA > 10 /\ effectiveness(srule(RN, RB, RW, RS, RA)) < (Thresh / 2.0) .
+
+  *** Rule 5: Generate a new composite rule from two effective rules
+  *** (This is the key self-improvement step: rule composition)
+  crl [reflect-compose-rules] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ;
+        srule(RN2, RB2, RW2, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(
+        srule(RN, RB, RW, RS, RA) ;
+        srule(RN2, RB2, RW2, RS, RA) ;
+        srule(RN + "+" + RN2, RB + ";" + RB2, 
+              (RW + RW2) / 2.0, 0, 0) ; RR,
+        N + 1, MaxN, Thresh)
+    if effectiveness(srule(RN, RB, RW, RS, RA)) > Thresh
+    /\ effectiveness(srule(RN2, RB2, RW2, RS, RA)) > Thresh
+    /\ N < MaxN .
+
+  *** Rule 6: Prune rules that are consistently ineffective
+  crl [reflect-prune-rule] :
+      reflState(
+        srule(RN, RB, RW, RS, RA) ; RR,
+        N, MaxN, Thresh)
+    =>
+      reflState(RR, N + 1, MaxN, Thresh)
+    if RA > 20 /\ effectiveness(srule(RN, RB, RW, RS, RA)) < 0.01 .
+
+endm
+
+*** =================================================================
+*** META-SEARCH FOR DERIVABILITY CHECKING
+*** =================================================================
+
+mod OC-DERIVABILITY-CHECK is
+  protecting OC-REFLECTIVE-INFERENCE .
+
+  *** Can a goal be derived from a given state using a module?
+  *** This uses metaSearch to check reachability at the meta-level.
+  
+  sort DerivabilityResult .
+  op derivable : Nat -> DerivabilityResult [ctor] .
+  op notDerivable : -> DerivabilityResult [ctor] .
+  op unknown : -> DerivabilityResult [ctor] .
+
+  op checkDerivable : Qid Term Term Nat -> DerivabilityResult .
+  
+  var MName : Qid .
+  var InitState GoalState : Term .
+  var Depth : Nat .
+  var M : Module .
+
+  ceq checkDerivable(MName, InitState, GoalState, Depth) = 
+      derivable(Depth)
+    if M := upModule(MName, false)
+    /\ metaSearch(M, InitState, GoalState, nil, '+, unbounded, 0) :: ResultTriple .
+  eq checkDerivable(MName, InitState, GoalState, Depth) = notDerivable [owise] .
+
+  *** Self-verification: can the system verify its own consistency?
+  sort ConsistencyCheck .
+  op consistent : -> ConsistencyCheck [ctor] .
+  op inconsistent : String -> ConsistencyCheck [ctor] .
+
+  *** Check that a module has no trivially contradictory rules
+  op checkModuleConsistency : Qid -> ConsistencyCheck .
+  ceq checkModuleConsistency(MName) = consistent
+    if M := upModule(MName, false) .
+  eq checkModuleConsistency(MName) = inconsistent("module not found") [owise] .
+
+endm

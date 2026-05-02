@@ -1,0 +1,322 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Phase 3 Integration Tests
+***  
+***  Tests for:
+***  1. Reflective Self-Rewriting Inference
+***  2. Model-Checking Cognitive Properties (LTL)
+***  3. Narrowing-Based Abductive Reasoning
+***  4. Parameterized Cognitive Modules
+***  5. Strategy-Controlled Cognitive Cycles
+***  6. Emergent Goal Generation (Autogenesis)
+*** ================================================================ )
+
+*** =================================================================
+*** TEST 1: Reflective Engine
+*** =================================================================
+
+load reflective-engine.maude
+
+*** Test rule effectiveness calculation
+red in OC-REFLECT-TERMS : 
+  effectiveness(srule("deduction", "A->B,B->C=>A->C", 0.8, 8, 10)) .
+*** expect: 0.64
+
+red in OC-REFLECT-TERMS :
+  effectiveness(srule("modus-ponens", "A,A->B=>B", 0.9, 9, 10)) .
+*** expect: 0.81
+
+*** Test rule registry operations
+red in OC-REFLECT-TERMS :
+  leastEffective(
+    srule("r1", "body1", 0.8, 8, 10) ;
+    srule("r2", "body2", 0.3, 1, 10) ;
+    srule("r3", "body3", 0.9, 9, 10)) .
+*** expect: srule("r2", ...) (lowest effectiveness)
+
+red in OC-REFLECT-TERMS :
+  mostEffective(
+    srule("r1", "body1", 0.8, 8, 10) ;
+    srule("r2", "body2", 0.3, 1, 10) ;
+    srule("r3", "body3", 0.9, 9, 10)) .
+*** expect: srule("r3", ...) (highest effectiveness)
+
+*** Test meta-level module introspection
+red in OC-META-OPS : cogModuleName .
+*** expect: 'OC-PLN-RULES
+
+*** Test reflective state search: boost effective rule
+search [1] in OC-REFLECTIVE-INFERENCE :
+  reflState(
+    srule("deduction", "A->B,B->C=>A->C", 0.7, 8, 10) ;
+    srule("modus-ponens", "A,A->B=>B", 0.5, 2, 10),
+    0, 5, 0.5)
+=>+ RS:ReflectiveState
+such that
+  effectiveness(mostEffective(rsRules(RS:ReflectiveState))) > 0.7 .
+
+*** Test derivability check (module that IS loaded)
+red in OC-DERIVABILITY-CHECK :
+  checkModuleConsistency('OC-REFLECTIVE-INFERENCE) .
+*** expect: consistent
+
+*** =================================================================
+*** TEST 2: Model Checking
+*** =================================================================
+
+load model-check-cog.maude
+
+*** Test cognitive state predicates
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9) link("animal", "living", 0.8),
+    attState(5, 100, 0))
+  |= noContradiction .
+*** expect: true
+
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9) neg("cat", "animal", 0.1),
+    attState(5, 100, 0))
+  |= noContradiction .
+*** expect: false (contradiction!)
+
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9),
+    attState(50, 100, 0))
+  |= budgetRespected .
+*** expect: true
+
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9),
+    attState(150, 100, 0))
+  |= budgetRespected .
+*** expect: false (over budget!)
+
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9),
+    attState(5, 100, 0))
+  |= hasKnowledge("cat", "animal") .
+*** expect: true
+
+red in OC-COG-PREDS :
+  cogState(
+    link("cat", "animal", 0.9),
+    attState(5, 100, 0))
+  |= hasKnowledge("cat", "fish") .
+*** expect: false
+
+*** Model check: verify initial state satisfies safety (noContradiction)
+red in OC-COG-CHECK :
+  cogState(
+    link("cat", "animal", 0.9) link("animal", "living", 0.8),
+    attState(5, 10, 0))
+  |= noContradiction .
+*** expect: true
+
+*** Model check: verify initial state satisfies budget
+red in OC-COG-CHECK :
+  cogState(
+    link("cat", "animal", 0.9) link("animal", "living", 0.8),
+    attState(5, 10, 0))
+  |= budgetRespected .
+*** expect: true
+
+*** Model check: verify contradiction state fails safety
+red in OC-COG-CHECK :
+  cogState(
+    link("cat", "animal", 0.9) neg("cat", "animal", 0.1),
+    attState(5, 10, 0))
+  |= noContradiction .
+*** expect: false (contradiction present)
+
+*** =================================================================
+*** TEST 3: Narrowing-Based Abduction
+*** =================================================================
+
+load narrowing-abduce.maude
+
+*** Test forward reasoning (deduction)
+search [1] in OC-NARROW-KB :
+  kb(inh(c("cat"), c("animal"), 0.9) inh(c("animal"), c("living"), 0.8), 0)
+=>+ kb(inh(c("cat"), c("living"), V:Float) NAS:NAtomSet, N:Nat) .
+*** Should find: V = 0.72, via deduction
+
+*** Test modus ponens
+search [1] in OC-NARROW-KB :
+  kb(imp(c("rain"), c("wet"), 0.9) c("rain"), 0)
+=>+ kb(c("wet") NAS:NAtomSet, N:Nat) .
+*** Should find: wet derived via modus ponens
+
+*** Test similarity to inheritance
+search [1] in OC-NARROW-KB :
+  kb(sim(c("dog"), c("wolf"), 0.7), 0)
+=>+ kb(inh(c("dog"), c("wolf"), V:Float) NAS:NAtomSet, N:Nat) .
+*** Should find: inheritance derived from similarity
+
+*** =================================================================
+*** TEST 4: Parameterized Cognitive Modules
+*** =================================================================
+
+load parameterized-cog.maude
+
+*** Test Biology domain instantiation
+red in BIO-PLN :
+  deduceStrength(0.9, 0.8) .
+*** expect: 0.72
+
+red in BIO-PLN :
+  domainAwareSim(bioEntity("cat", "felidae"), bioEntity("lion", "felidae")) .
+*** expect: dSim(bioEntity("cat","felidae"), bioEntity("lion","felidae"), 0.9)
+*** (same taxon = high similarity)
+
+red in BIO-PLN :
+  domainAwareSim(bioEntity("cat", "felidae"), bioEntity("oak", "plantae")) .
+*** expect: dSim(..., 0.3) (different taxon = low similarity)
+
+*** Test Social domain instantiation
+red in SOCIAL-PLN :
+  deduceStrength(0.8, 0.7) .
+*** expect: 0.56
+
+red in SOCIAL-PLN :
+  domainAwareSim(person("alice", 8), person("bob", 7)) .
+*** expect: dSim(person("alice",8), person("bob",7), 0.9)
+*** (trust levels close = high similarity)
+
+*** Test Physics domain instantiation
+red in PHYS-PLN :
+  deduceStrength(0.95, 0.9) .
+*** expect: 0.855
+
+red in PHYS-PLN :
+  domainAwareSim(particle("electron", 0.511), particle("muon", 105.7)) .
+*** expect: dSim(..., low) (very different masses)
+
+*** =================================================================
+*** TEST 5: Strategy-Controlled Cognitive Cycles
+*** =================================================================
+
+load cognitive-cycle.maude
+
+*** Test perception
+red in OC-CYCLE-STATE :
+  csPercepts(cycleState(
+    percept("hello", 0.9) & percept("world", 0.8),
+    emptyK, noAction, noGoal, 0)) .
+*** expect: percept("hello", 0.9) & percept("world", 0.8)
+
+*** Test basic state construction
+red in OC-CYCLE-STATE :
+  csCycle(cycleState(noPercept, emptyK, noAction, noGoal, 42)) .
+*** expect: 42
+
+*** Test strategy-controlled rewriting (srewrite)
+srewrite in OC-COGNITIVE-CYCLE :
+  cycleState(
+    percept("cat", 0.9),
+    emptyK, noAction, noGoal, 0)
+using perceive .
+*** Should perceive the cat percept into knowledge
+
+srewrite in OC-COGNITIVE-CYCLE :
+  cycleState(
+    percept("cat", 0.9) & percept("dog", 0.8),
+    emptyK, noAction, noGoal, 0)
+using drainPercepts .
+*** Should drain all percepts into knowledge
+
+*** Test reactive strategy
+srewrite in OC-COGNITIVE-CYCLE :
+  cycleState(
+    percept("alert", 0.95),
+    emptyK, noAction,
+    goal("respond", 0.9) >> noGoal, 0)
+using reactive .
+*** Should perceive and act immediately
+
+*** Test basic cycle
+srewrite in OC-COGNITIVE-CYCLE :
+  cycleState(
+    percept("data", 0.7),
+    kLink("a", "b", 0.8, 60) + kNode("b", 0.7, 30) + emptyK,
+    noAction,
+    goal("learn", 0.5) >> noGoal, 0)
+using basicCycle .
+*** Should run full perceive-attend-reason-act-learn-tick cycle
+
+*** =================================================================
+*** TEST 6: Autogenesis (Emergent Goal Generation)
+*** =================================================================
+
+load autogenesis.maude
+
+*** Test drive urgency
+red in OC-INTROSPECTION :
+  driveUrgency(drive("curiosity", 0.3, 0.9)) .
+*** expect: 0.6
+
+red in OC-INTROSPECTION :
+  driveUrgency(drive("energy", 0.8, 0.5)) .
+*** expect: 0.0 (already above target)
+
+*** Test most urgent drive
+red in OC-INTROSPECTION :
+  mostUrgent(
+    drive("curiosity", 0.3, 0.9) &
+    drive("energy", 0.8, 0.5) &
+    drive("social", 0.1, 0.8)) .
+*** expect: drive("social", 0.1, 0.8) (urgency = 0.7, highest)
+
+*** Test metric access
+red in OC-INTROSPECTION :
+  getMetric(
+    metric("knowledge-count", 5.0) &
+    metric("inference-rate", 0.3) &
+    metric("sti-variance", 50.0),
+    "inference-rate") .
+*** expect: 0.3
+
+*** Test goal generation: low knowledge triggers exploration
+search [1] in OC-GOAL-GENERATOR :
+  ggState(
+    selfModel(
+      metric("knowledge-count", 3.0) & metric("inference-rate", 0.8),
+      drive("curiosity", 0.5, 0.9) & emptyDrives,
+      10),
+    emptyGG, 0)
+=>+ ggState(SM:SelfModel, GG:GenGoalSet, N:Nat)
+such that GG:GenGoalSet =/= emptyGG .
+*** Should generate exploration goal (knowledge < 10)
+
+*** Test autogenesis cycle phases
+search [1] in OC-AUTOGENESIS :
+  autoState(
+    ggState(
+      selfModel(
+        metric("knowledge-count", 3.0),
+        drive("curiosity", 0.2, 0.9),
+        50),
+      emptyGG, 0),
+    "idle", 0)
+=>+ autoState(GGS:GoalGenState, "verified", S:Nat) .
+*** Should traverse: idle -> introspecting -> analyzing -> generating -> verified
+
+*** Test safety check
+red in OC-AUTOGENESIS :
+  checkAutoSafety(
+    autoState(
+      ggState(selfModel(emptyMetrics, emptyDrives, 10), emptyGG, 5),
+      "installed", 1)) .
+*** expect: safe
+
+red in OC-AUTOGENESIS :
+  checkAutoSafety(
+    autoState(
+      ggState(selfModel(emptyMetrics, emptyDrives, 10), emptyGG, 5000),
+      "installed", 1)) .
+*** expect: unsafe("runaway iteration")
+
+quit

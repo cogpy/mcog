@@ -1,0 +1,211 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-PARAMETERIZED Module
+***  
+***  Parameterized cognitive modules using Maude's theory/view system.
+***  This enables ALGEBRAIC TRANSFER LEARNING:
+***  
+***  Define a cognitive process ONCE as a parameterized module,
+***  then instantiate it for different domains via views (theory
+***  morphisms). The type system GUARANTEES that inference rules
+***  remain valid in each domain.
+***  
+***  Based on: Maude parameterized modules + OpenCog domain adaptation
+*** ================================================================ )
+
+*** =================================================================
+*** THEORY: What a cognitive domain must provide
+*** =================================================================
+
+fth COGNITIVE-DOMAIN is
+  protecting FLOAT .
+  protecting STRING .
+  
+  sort Entity .
+  
+  op entityName : Entity -> String .
+  op domainSim : Entity Entity -> Float .
+  op plausible : Entity Entity -> Bool .
+endfth
+
+*** =================================================================
+*** PARAMETERIZED PLN: Works in ANY cognitive domain
+*** =================================================================
+
+fmod PLN-GENERIC{D :: COGNITIVE-DOMAIN} is
+  
+  *** Domain-parameterized atoms
+  sort DAtom .
+  sort DAtomSet .
+  subsort DAtom < DAtomSet .
+  
+  op emptyDA : -> DAtomSet [ctor] .
+  op __ : DAtomSet DAtomSet -> DAtomSet [ctor assoc comm id: emptyDA] .
+  
+  *** Domain-specific links using the parameterized Entity sort
+  op dInh : D$Entity D$Entity Float -> DAtom [ctor] .
+  op dSim : D$Entity D$Entity Float -> DAtom [ctor] .
+  op dEval : D$Entity D$Entity Float -> DAtom [ctor] .
+
+  *** Domain-parameterized deduction formula
+  op deduceStrength : Float Float -> Float .
+  eq deduceStrength(V1:Float, V2:Float) = V1:Float * V2:Float .
+
+  *** Domain-aware similarity (uses domain-specific measure)
+  op domainAwareSim : D$Entity D$Entity -> DAtom .
+  eq domainAwareSim(E1:D$Entity, E2:D$Entity) = 
+     dSim(E1:D$Entity, E2:D$Entity, domainSim(E1:D$Entity, E2:D$Entity)) .
+
+endfm
+
+*** =================================================================
+*** PARAMETERIZED ATTENTION: Works in ANY cognitive domain
+*** =================================================================
+
+fmod ECAN-GENERIC{D :: COGNITIVE-DOMAIN} is
+  protecting PLN-GENERIC{D} .
+  
+  *** Attention value in domain context
+  sort DAttention .
+  op dAtt : D$Entity Nat Nat -> DAttention [ctor] .
+  
+  sort DAttSet .
+  subsort DAttention < DAttSet .
+  op emptyDAtt : -> DAttSet [ctor] .
+  op _++_ : DAttSet DAttSet -> DAttSet [ctor assoc comm id: emptyDAtt] .
+
+  *** Hebbian weight update (domain-aware)
+  op hebbianUpdate : D$Entity D$Entity Float -> Float .
+  eq hebbianUpdate(E1:D$Entity, E2:D$Entity, W:Float) = 
+     W:Float + (0.1 * domainSim(E1:D$Entity, E2:D$Entity)) .
+
+endfm
+
+*** =================================================================
+*** CONCRETE DOMAIN: Biology
+*** =================================================================
+
+fmod BIOLOGY-DOMAIN is
+  protecting FLOAT .
+  protecting STRING .
+  
+  sort BioEntity .
+  op bioEntity : String String -> BioEntity [ctor] .
+  
+  op bioName : BioEntity -> String .
+  op bioTaxon : BioEntity -> String .
+  
+  vars N T N2 T2 : String .
+  
+  eq bioName(bioEntity(N, T)) = N .
+  eq bioTaxon(bioEntity(N, T)) = T .
+  
+  *** Biological similarity: same taxon = high similarity
+  op bioSim : BioEntity BioEntity -> Float .
+  eq bioSim(bioEntity(N, T), bioEntity(N2, T)) = 0.9 .
+  eq bioSim(bioEntity(N, T), bioEntity(N2, T2)) = 0.3 [owise] .
+  
+  op bioPlausible : BioEntity BioEntity -> Bool .
+  eq bioPlausible(bioEntity(N, T), bioEntity(N2, T)) = true .
+  eq bioPlausible(bioEntity(N, T), bioEntity(N2, T2)) = false [owise] .
+endfm
+
+*** View: Biology satisfies COGNITIVE-DOMAIN
+view Biology from COGNITIVE-DOMAIN to BIOLOGY-DOMAIN is
+  sort Entity to BioEntity .
+  op entityName to bioName .
+  op domainSim to bioSim .
+  op plausible to bioPlausible .
+endv
+
+*** Instantiate PLN for Biology
+fmod BIO-PLN is
+  protecting PLN-GENERIC{Biology} .
+endfm
+
+*** =================================================================
+*** CONCRETE DOMAIN: Social Reasoning
+*** =================================================================
+
+fmod SOCIAL-DOMAIN is
+  protecting FLOAT .
+  protecting STRING .
+  protecting CONVERSION .
+  
+  sort SocialEntity .
+  op person : String Nat -> SocialEntity [ctor] .
+  
+  op socialName : SocialEntity -> String .
+  op trustLevel : SocialEntity -> Nat .
+  
+  vars N N2 : String .
+  vars T T2 : Nat .
+  
+  eq socialName(person(N, T)) = N .
+  eq trustLevel(person(N, T)) = T .
+  
+  *** Social similarity: based on trust level proximity
+  op socialSim : SocialEntity SocialEntity -> Float .
+  ceq socialSim(person(N, T), person(N2, T2)) = 
+      1.0 - (float(sd(T, T2)) / 10.0)
+    if sd(T, T2) <= 10 .
+  eq socialSim(person(N, T), person(N2, T2)) = 0.0 [owise] .
+  
+  op socialPlausible : SocialEntity SocialEntity -> Bool .
+  eq socialPlausible(person(N, T), person(N2, T2)) = (T > 5) and (T2 > 5) .
+endfm
+
+*** View: Social satisfies COGNITIVE-DOMAIN
+view Social from COGNITIVE-DOMAIN to SOCIAL-DOMAIN is
+  sort Entity to SocialEntity .
+  op entityName to socialName .
+  op domainSim to socialSim .
+  op plausible to socialPlausible .
+endv
+
+*** Instantiate PLN for Social Reasoning
+fmod SOCIAL-PLN is
+  protecting PLN-GENERIC{Social} .
+endfm
+
+*** =================================================================
+*** CONCRETE DOMAIN: Physics
+*** =================================================================
+
+fmod PHYSICS-DOMAIN is
+  protecting FLOAT .
+  protecting STRING .
+  
+  sort PhysEntity .
+  op particle : String Float -> PhysEntity [ctor] .
+  
+  op physName : PhysEntity -> String .
+  op physMass : PhysEntity -> Float .
+  
+  vars N N2 : String .
+  vars M M2 : Float .
+  
+  eq physName(particle(N, M)) = N .
+  eq physMass(particle(N, M)) = M .
+  
+  *** Physics similarity: based on mass ratio
+  op physSim : PhysEntity PhysEntity -> Float .
+  ceq physSim(particle(N, M), particle(N2, M2)) = 
+      min(M, M2) / max(M, M2)
+    if M > 0.0 /\ M2 > 0.0 .
+  eq physSim(particle(N, M), particle(N2, M2)) = 0.0 [owise] .
+  
+  op physPlausible : PhysEntity PhysEntity -> Bool .
+  eq physPlausible(particle(N, M), particle(N2, M2)) = true .
+endfm
+
+view Physics from COGNITIVE-DOMAIN to PHYSICS-DOMAIN is
+  sort Entity to PhysEntity .
+  op entityName to physName .
+  op domainSim to physSim .
+  op plausible to physPlausible .
+endv
+
+*** Instantiate PLN for Physics
+fmod PHYS-PLN is
+  protecting PLN-GENERIC{Physics} .
+endfm

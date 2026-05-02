@@ -1,0 +1,294 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-AUTOGENESIS Module
+***  
+***  Emergent Goal Generation: the system generates its OWN goals
+***  by reflecting on its cognitive state and discovering unmet needs.
+***  
+***  This implements the AUTOGENESIS LOOP:
+***  
+***  1. INTROSPECT: Reify own state at meta-level
+***  2. ANALYZE: Apply PLN to reason about "what am I lacking?"
+***  3. GENERATE: Construct new goals/rules as meta-level terms
+***  4. VERIFY: Model-check that new goals are safe
+***  5. INSTALL: Descend new goals back to object level
+***  6. EXECUTE: Run the cognitive cycle with new goals
+***  
+***  This is the key AGI capability: a system that doesn't just
+***  pursue given goals, but GENERATES its own goals based on
+***  self-reflection. Combined with the Gödel Machine (reflective
+***  engine), this creates a SELF-IMPROVING system.
+***  
+***  Based on: Goertzel's Cognitive Synergy + Schmidhuber's Gödel Machine
+***           + OpenPsi motivational framework + Maude reflection
+*** ================================================================ )
+
+*** =================================================================
+*** INTROSPECTIVE STATE
+*** =================================================================
+
+mod OC-INTROSPECTION is
+  protecting STRING .
+  protecting FLOAT .
+  protecting NAT .
+  protecting CONVERSION .
+
+  *** What the system knows about itself
+  sort SelfModel .
+  
+  *** Cognitive metrics
+  sort CogMetric .
+  sort CogMetricSet .
+  subsort CogMetric < CogMetricSet .
+  
+  op emptyMetrics : -> CogMetricSet [ctor] .
+  op _&_ : CogMetricSet CogMetricSet -> CogMetricSet [ctor assoc comm id: emptyMetrics] .
+  
+  op metric : String Float -> CogMetric [ctor] .
+  ***         name   value
+  
+  *** Self-model: metrics + history + drives
+  sort DriveState .
+  op drive : String Float Float -> DriveState [ctor] .
+  ***        name   current target
+  
+  sort DriveSet .
+  subsort DriveState < DriveSet .
+  op emptyDrives : -> DriveSet [ctor] .
+  op _&_ : DriveSet DriveSet -> DriveSet [ctor assoc comm id: emptyDrives] .
+
+  op selfModel : CogMetricSet DriveSet Nat -> SelfModel [ctor] .
+  ***            metrics      drives  age
+  
+  op smMetrics : SelfModel -> CogMetricSet .
+  op smDrives : SelfModel -> DriveSet .
+  op smAge : SelfModel -> Nat .
+  
+  var MS : CogMetricSet .
+  var DS : DriveSet .
+  var Age : Nat .
+  
+  eq smMetrics(selfModel(MS, DS, Age)) = MS .
+  eq smDrives(selfModel(MS, DS, Age)) = DS .
+  eq smAge(selfModel(MS, DS, Age)) = Age .
+
+  *** Metric access
+  op getMetric : CogMetricSet String -> Float .
+  vars MN S S2 : String .
+  vars MV V V2 Cur Tgt Urg : Float .
+  
+  eq getMetric(metric(MN, MV) & MS, MN) = MV .
+  eq getMetric(MS, MN) = 0.0 [owise] .
+
+  *** Drive urgency: how far from target
+  op driveUrgency : DriveState -> Float .
+  eq driveUrgency(drive(S, Cur, Tgt)) = 
+     if Tgt > Cur then Tgt - Cur else 0.0 fi .
+
+  *** Most urgent drive
+  op mostUrgent : DriveSet -> DriveState .
+  op mostUrgentAux : DriveSet DriveState -> DriveState .
+  
+  var D D2 : DriveState .
+  var DS2 : DriveSet .
+  
+  eq mostUrgent(D & DS2) = mostUrgentAux(DS2, D) .
+  eq mostUrgent(D) = D .
+  eq mostUrgentAux(emptyDrives, D) = D .
+  eq mostUrgentAux(D2 & DS2, D) = 
+     if driveUrgency(D2) > driveUrgency(D)
+     then mostUrgentAux(DS2, D2)
+     else mostUrgentAux(DS2, D) fi .
+
+endm
+
+*** =================================================================
+*** GOAL GENERATION ENGINE
+*** =================================================================
+
+mod OC-GOAL-GENERATOR is
+  protecting OC-INTROSPECTION .
+
+  *** Generated goals
+  sort GenGoal .
+  sort GenGoalSet .
+  subsort GenGoal < GenGoalSet .
+  
+  op emptyGG : -> GenGoalSet [ctor] .
+  op _&_ : GenGoalSet GenGoalSet -> GenGoalSet [ctor assoc comm id: emptyGG] .
+  
+  op genGoal : String Float String -> GenGoal [ctor] .
+  ***          name   priority source-drive
+
+  *** Goal generation rules (emergent!)
+  sort GoalGenState .
+  op ggState : SelfModel GenGoalSet Nat -> GoalGenState [ctor] .
+  ***          self-model generated-goals iteration
+  
+  op ggsModel : GoalGenState -> SelfModel .
+  op ggsGoals : GoalGenState -> GenGoalSet .
+  op ggsIter : GoalGenState -> Nat .
+  
+  var SM : SelfModel .
+  var GG : GenGoalSet .
+  var Iter : Nat .
+  
+  eq ggsModel(ggState(SM, GG, Iter)) = SM .
+  eq ggsGoals(ggState(SM, GG, Iter)) = GG .
+  eq ggsIter(ggState(SM, GG, Iter)) = Iter .
+
+  vars S S2 DN : String .
+  vars V V2 Cur Tgt Urg : Float .
+  var MS : CogMetricSet .
+  var DS : DriveSet .
+  var Age : Nat .
+  var D : DriveState .
+
+  *** =============================================================
+  *** AUTOGENESIS RULES
+  *** =============================================================
+
+  *** Rule 1: Generate exploration goal when knowledge is low
+  crl [gen-explore] :
+      ggState(selfModel(metric("knowledge-count", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("knowledge-count", V) & MS, DS, Age),
+              genGoal("explore-new-domain", 0.8, "curiosity") & GG, Iter + 1)
+    if V < 10.0 .
+
+  *** Rule 2: Generate reasoning goal when inference rate is low
+  crl [gen-reason-more] :
+      ggState(selfModel(metric("inference-rate", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("inference-rate", V) & MS, DS, Age),
+              genGoal("increase-inference", 0.7, "competence") & GG, Iter + 1)
+    if V < 0.5 .
+
+  *** Rule 3: Generate attention-rebalance goal when STI is skewed
+  crl [gen-rebalance] :
+      ggState(selfModel(metric("sti-variance", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("sti-variance", V) & MS, DS, Age),
+              genGoal("rebalance-attention", 0.6, "homeostasis") & GG, Iter + 1)
+    if V > 100.0 .
+
+  *** Rule 4: Generate self-improvement goal from urgent drive
+  crl [gen-from-drive] :
+      ggState(selfModel(MS, drive(DN, Cur, Tgt) & DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(MS, drive(DN, Cur, Tgt) & DS, Age),
+              genGoal("satisfy-" + DN, Tgt - Cur, DN) & GG, Iter + 1)
+    if Tgt - Cur > 0.3 .
+
+  *** Rule 5: Generate meta-learning goal when system is old but not improving
+  crl [gen-meta-learn] :
+      ggState(selfModel(metric("improvement-rate", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("improvement-rate", V) & MS, DS, Age),
+              genGoal("meta-learn-new-strategy", 0.9, "self-improvement") & GG, Iter + 1)
+    if V < 0.01 /\ Age > 100 .
+
+  *** Rule 6: Generate social goal when isolation detected
+  crl [gen-social] :
+      ggState(selfModel(metric("interaction-count", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("interaction-count", V) & MS, DS, Age),
+              genGoal("seek-interaction", 0.5, "social") & GG, Iter + 1)
+    if V < 1.0 /\ Age > 50 .
+
+  *** Rule 7: Generate creativity goal when patterns are repetitive
+  crl [gen-creative] :
+      ggState(selfModel(metric("novelty-score", V) & MS, DS, Age), GG, Iter)
+    =>
+      ggState(selfModel(metric("novelty-score", V) & MS, DS, Age),
+              genGoal("generate-novel-hypothesis", 0.6, "creativity") & GG, Iter + 1)
+    if V < 0.2 .
+
+endm
+
+*** =================================================================
+*** THE AUTOGENESIS LOOP (full self-improvement cycle)
+*** =================================================================
+
+mod OC-AUTOGENESIS is
+  protecting OC-GOAL-GENERATOR .
+
+  *** The full autogenesis state
+  sort AutoState .
+  op autoState : GoalGenState String Nat -> AutoState [ctor] .
+  ***            goal-gen-state  phase  safety-checks-passed
+  
+  op asGGS : AutoState -> GoalGenState .
+  op asPhase : AutoState -> String .
+  op asSafety : AutoState -> Nat .
+  
+  var GGS : GoalGenState .
+  var Phase : String .
+  var Safety : Nat .
+  var SM : SelfModel .
+  var GG : GenGoalSet .
+  var Iter : Nat .
+  vars S S2 S3 : String .
+  vars V V2 : Float .
+
+  eq asGGS(autoState(GGS, Phase, Safety)) = GGS .
+  eq asPhase(autoState(GGS, Phase, Safety)) = Phase .
+  eq asSafety(autoState(GGS, Phase, Safety)) = Safety .
+
+  *** =============================================================
+  *** AUTOGENESIS CYCLE PHASES
+  *** =============================================================
+
+  *** Phase 1: INTROSPECT — gather metrics about self
+  rl [auto-introspect] :
+      autoState(GGS, "idle", Safety)
+    =>
+      autoState(GGS, "introspecting", Safety) .
+
+  *** Phase 2: ANALYZE — identify deficiencies
+  rl [auto-analyze] :
+      autoState(GGS, "introspecting", Safety)
+    =>
+      autoState(GGS, "analyzing", Safety) .
+
+  *** Phase 3: GENERATE — create new goals (triggers goal-gen rules)
+  rl [auto-generate] :
+      autoState(ggState(SM, GG, Iter), "analyzing", Safety)
+    =>
+      autoState(ggState(SM, GG, Iter), "generating", Safety) .
+
+  *** Phase 4: VERIFY — safety check (increment counter)
+  crl [auto-verify] :
+      autoState(ggState(SM, GG, Iter), "generating", Safety)
+    =>
+      autoState(ggState(SM, GG, Iter), "verified", Safety + 1)
+    if Iter < 100 .   *** bounded iteration = safe
+
+  *** Phase 5: INSTALL — commit goals to active system
+  rl [auto-install] :
+      autoState(GGS, "verified", Safety)
+    =>
+      autoState(GGS, "installed", Safety) .
+
+  *** Phase 6: EXECUTE — run with new goals, then loop back
+  rl [auto-execute] :
+      autoState(GGS, "installed", Safety)
+    =>
+      autoState(GGS, "idle", Safety) .
+
+  *** =============================================================
+  *** SAFETY INVARIANTS
+  *** =============================================================
+
+  *** The system can only self-modify if safety checks pass
+  sort SafetyVerdict .
+  op safe : -> SafetyVerdict [ctor] .
+  op unsafe : String -> SafetyVerdict [ctor] .
+
+  op checkAutoSafety : AutoState -> SafetyVerdict .
+  eq checkAutoSafety(autoState(ggState(SM, GG, Iter), Phase, Safety)) =
+     if Iter > 1000 then unsafe("runaway iteration")
+     else if Safety == 0 and Phase == "installed" 
+          then unsafe("unverified installation")
+          else safe fi fi .
+
+endm

@@ -1,0 +1,209 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-MODEL-CHECK Module
+***  
+***  Model-checking cognitive properties using Maude's built-in
+***  LTL model checker. This enables FORMAL VERIFICATION of:
+***  
+***  - Safety: "The system never derives a contradiction"
+***  - Liveness: "Every goal eventually receives attention"
+***  - Fairness: "All cognitive processes get scheduled"
+***  - Convergence: "Belief revision converges"
+***  - Bounded resources: "STI never exceeds budget"
+***  
+***  The key insight: the AtomSpace IS a Kripke structure!
+***  States = AtomSpace configurations
+***  Transitions = rewrite rules (PLN, ECAN, etc.)
+***  Propositions = predicates over AtomSpace content
+***  
+***  Based on: Maude model-checker.maude + OpenCog safety requirements
+*** ================================================================ )
+
+load model-checker.maude
+
+*** =================================================================
+*** COGNITIVE STATE (simplified AtomSpace for model-checking)
+*** =================================================================
+
+mod OC-COG-STATE is
+  protecting FLOAT .
+  protecting STRING .
+  protecting NAT .
+
+  *** Simplified atom representation for model-checking
+  *** (Full AtomSpace is too complex for exhaustive state exploration)
+  sort CogAtom .
+  sort CogAtomSet .
+  subsort CogAtom < CogAtomSet .
+  
+  op emptyCA : -> CogAtomSet [ctor] .
+  op __ : CogAtomSet CogAtomSet -> CogAtomSet [ctor assoc comm id: emptyCA] .
+
+  *** Atoms with truth values (simplified)
+  op node : String Float -> CogAtom [ctor] .
+  op link : String String Float -> CogAtom [ctor] .
+  op neg : String String Float -> CogAtom [ctor] .
+  
+  *** Attention state
+  sort AttState .
+  op attState : Nat Nat Nat -> AttState [ctor] .
+  ***           totalSTI budget cycle
+  
+  op totalSTI : AttState -> Nat .
+  op budget : AttState -> Nat .
+  op attCycle : AttState -> Nat .
+  
+  vars TS B C : Nat .
+  eq totalSTI(attState(TS, B, C)) = TS .
+  eq budget(attState(TS, B, C)) = B .
+  eq attCycle(attState(TS, B, C)) = C .
+
+  *** The cognitive state for model-checking
+  sort CogState .
+  op cogState : CogAtomSet AttState -> CogState [ctor] .
+  
+  op csAtoms : CogState -> CogAtomSet .
+  op csAtt : CogState -> AttState .
+  
+  var CAS : CogAtomSet .
+  var AS2 : AttState .
+  
+  eq csAtoms(cogState(CAS, AS2)) = CAS .
+  eq csAtt(cogState(CAS, AS2)) = AS2 .
+
+  *** Atom predicates
+  op hasNode : CogAtomSet String -> Bool .
+  op hasLink : CogAtomSet String String -> Bool .
+  op hasContradiction : CogAtomSet -> Bool .
+  op atomCount : CogAtomSet -> Nat .
+  
+  var CA : CogAtom .
+  vars S1 S2 S3 : String .
+  vars F F2 : Float .
+
+  eq hasNode(node(S1, F) CAS, S1) = true .
+  eq hasNode(CAS, S1) = false [owise] .
+  
+  eq hasLink(link(S1, S2, F) CAS, S1, S2) = true .
+  eq hasLink(CAS, S1, S2) = false [owise] .
+  
+  *** Contradiction: both link(A,B) and neg(A,B) with high confidence
+  eq hasContradiction(link(S1, S2, F) neg(S1, S2, F2) CAS) = true .
+  eq hasContradiction(CAS) = false [owise] .
+
+  eq atomCount(emptyCA) = 0 .
+  eq atomCount(CA CAS) = 1 + atomCount(CAS) .
+
+  *** =============================================================
+  *** COGNITIVE TRANSITIONS (rewrite rules)
+  *** =============================================================
+
+  vars AA BB DD : String .
+  vars VV VV2 VV3 : Float .
+  vars NN1 NN2 NN3 : Nat .
+
+  *** PLN Deduction: link(A,B) + link(B,C) => link(A,C)
+  crl [cog-deduction] :
+      cogState(link(AA, BB, VV) link(BB, DD, VV2) CAS, attState(TS, NN2, C))
+    =>
+      cogState(link(AA, BB, VV) link(BB, DD, VV2) link(AA, DD, VV * VV2) CAS, 
+               attState(TS, NN2, C + 1))
+    if VV * VV2 > 0.1 .
+
+  *** PLN Revision: two links with same endpoints get merged
+  crl [cog-revision] :
+      cogState(link(AA, BB, VV) link(AA, BB, VV2) CAS, attState(TS, NN2, C))
+    =>
+      cogState(link(AA, BB, (VV + VV2) / 2.0) CAS, attState(TS, NN2, C + 1))
+    if VV =/= VV2 .
+
+  *** ECAN: attention spreading (STI increases)
+  crl [cog-attend] :
+      cogState(CAS, attState(TS, NN2, C))
+    =>
+      cogState(CAS, attState(TS + 1, NN2, C + 1))
+    if TS < NN2 .
+
+  *** ECAN: rent collection (STI decreases)
+  crl [cog-rent] :
+      cogState(CAS, attState(TS, NN2, C))
+    =>
+      cogState(CAS, attState(sd(TS, 1), NN2, C + 1))
+    if TS > 0 .
+
+  *** Forgetting: remove low-confidence atoms
+  crl [cog-forget] :
+      cogState(link(AA, BB, VV) CAS, attState(TS, NN2, C))
+    =>
+      cogState(CAS, attState(TS, NN2, C + 1))
+    if VV < 0.05 .
+
+  *** Negation introduction (can create contradictions!)
+  rl [cog-negate] :
+      cogState(link(AA, BB, VV) CAS, attState(TS, NN2, C))
+    =>
+      cogState(link(AA, BB, VV) neg(AA, BB, 1.0 - VV) CAS, attState(TS, NN2, C + 1)) .
+
+endm
+
+*** =================================================================
+*** SATISFACTION: Define propositions over cognitive states
+*** =================================================================
+
+mod OC-COG-PREDS is
+  protecting OC-COG-STATE .
+  including SATISFACTION .
+
+  subsort CogState < State .
+
+  *** Atomic propositions about the cognitive state
+  ops noContradiction goalDerived budgetRespected : -> Prop [ctor] .
+  ops attentionActive systemAlive : -> Prop [ctor] .
+  op hasKnowledge : String String -> Prop [ctor] .
+  op stiBelow : Nat -> Prop [ctor] .
+  op cycleBelow : Nat -> Prop [ctor] .
+
+  var CAS : CogAtomSet .
+  var AS2 : AttState .
+  vars S1 S2 : String .
+  vars N1 N2 C Bound : Nat .
+
+  *** Satisfaction relation
+  eq cogState(CAS, AS2) |= noContradiction = not hasContradiction(CAS) .
+  eq cogState(CAS, AS2) |= goalDerived = atomCount(CAS) > 0 .
+  eq cogState(CAS, attState(N1, N2, C)) |= budgetRespected = N1 <= N2 .
+  eq cogState(CAS, attState(N1, N2, C)) |= attentionActive = N1 > 0 .
+  eq cogState(CAS, AS2) |= systemAlive = true .
+  eq cogState(CAS, AS2) |= hasKnowledge(S1, S2) = hasLink(CAS, S1, S2) .
+  eq cogState(CAS, attState(N1, N2, C)) |= stiBelow(Bound) = N1 < Bound .
+  eq cogState(CAS, attState(N1, N2, C)) |= cycleBelow(Bound) = C < Bound .
+
+endm
+
+*** =================================================================
+*** MODEL CHECKER INSTANTIATION
+*** =================================================================
+
+mod OC-COG-CHECK is
+  protecting OC-COG-PREDS .
+  including MODEL-CHECKER .
+
+  *** Now we can verify LTL properties of the cognitive system!
+  ***
+  *** Example properties to check:
+  ***
+  *** Safety: [] noContradiction
+  ***   "The system ALWAYS maintains consistency"
+  ***
+  *** Liveness: <> hasKnowledge("cat", "living-thing")
+  ***   "The system EVENTUALLY derives that cats are living things"
+  ***
+  *** Bounded resources: [] budgetRespected
+  ***   "STI never exceeds the attention budget"
+  ***
+  *** Fairness: [] <> attentionActive
+  ***   "Attention is ALWAYS EVENTUALLY active (no permanent starvation)"
+  ***
+  *** Convergence: <> [] noContradiction
+  ***   "The system EVENTUALLY reaches and STAYS in a consistent state"
+
+endm

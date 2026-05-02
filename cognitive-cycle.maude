@@ -1,0 +1,280 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-COGNITIVE-CYCLE Module
+***  
+***  Strategy-controlled cognitive cycles using Maude's built-in
+***  strategy language (smod). This replaces the hard-coded C++
+***  CogServer scheduler with a COMPOSABLE, ALGEBRAIC control flow.
+***  
+***  The cognitive cycle is the "heartbeat" of AGI. Instead of
+***  imperative C++ code deciding which MindAgent runs when, we
+***  express the entire cognitive cycle as strategy composition:
+***  
+***    perceive ; attend ; reason ; act ; learn
+***  
+***  Strategies compose algebraically:
+***    s1 ; s2     = sequence
+***    s1 | s2     = nondeterministic choice
+***    s1 or-else s2 = try s1, fallback to s2
+***    s !         = repeat until fixpoint
+***    s *         = repeat zero or more times
+***    s +         = repeat one or more times
+***    try(s)      = s or-else idle
+***    one(s)      = apply s exactly once
+***    test(s)     = check if s can apply (without applying)
+***    not(s)      = succeed iff s fails
+***    matchrew    = conditional strategy application
+***  
+***  Based on: Maude strategy language + OpenCog CogServer cycle
+*** ================================================================ )
+
+*** =================================================================
+*** THE COGNITIVE STATE (unified for strategy control)
+*** =================================================================
+
+mod OC-CYCLE-STATE is
+  protecting STRING .
+  protecting FLOAT .
+  protecting NAT .
+
+  *** Perception buffer
+  sort Percept .
+  sort PerceptBuf .
+  subsort Percept < PerceptBuf .
+  
+  op noPercept : -> PerceptBuf [ctor] .
+  op _&_ : PerceptBuf PerceptBuf -> PerceptBuf [ctor assoc comm id: noPercept] .
+  op percept : String Float -> Percept [ctor] .
+
+  *** Knowledge atoms (simplified for strategy demonstration)
+  sort KAtom .
+  sort KAtomSet .
+  subsort KAtom < KAtomSet .
+  
+  op emptyK : -> KAtomSet [ctor] .
+  op _+_ : KAtomSet KAtomSet -> KAtomSet [ctor assoc comm id: emptyK] .
+  
+  op kNode : String Float Nat -> KAtom [ctor] .
+  ***         name   truth  sti
+  op kLink : String String Float Nat -> KAtom [ctor] .
+  ***         from   to     truth  sti
+
+  *** Action buffer
+  sort Action .
+  sort ActionBuf .
+  subsort Action < ActionBuf .
+  
+  op noAction : -> ActionBuf [ctor] .
+  op _&_ : ActionBuf ActionBuf -> ActionBuf [ctor assoc comm id: noAction] .
+  op action : String String -> Action [ctor] .
+  ***         type   target
+
+  *** Goal stack
+  sort Goal .
+  sort GoalStack .
+  subsort Goal < GoalStack .
+  
+  op noGoal : -> GoalStack [ctor] .
+  op _>>_ : GoalStack GoalStack -> GoalStack [ctor assoc id: noGoal] .
+  op goal : String Float -> Goal [ctor] .
+  ***       name   urgency
+
+  *** The full cognitive state
+  sort CycleState .
+  op cycleState : PerceptBuf KAtomSet ActionBuf GoalStack Nat -> CycleState [ctor] .
+  ***             percepts  knowledge actions   goals     cycle#
+  
+  op csPercepts : CycleState -> PerceptBuf .
+  op csKnowledge : CycleState -> KAtomSet .
+  op csActions : CycleState -> ActionBuf .
+  op csGoals : CycleState -> GoalStack .
+  op csCycle : CycleState -> Nat .
+  
+  var PB : PerceptBuf .
+  var KS : KAtomSet .
+  var AB : ActionBuf .
+  var GS : GoalStack .
+  var N : Nat .
+  
+  eq csPercepts(cycleState(PB, KS, AB, GS, N)) = PB .
+  eq csKnowledge(cycleState(PB, KS, AB, GS, N)) = KS .
+  eq csActions(cycleState(PB, KS, AB, GS, N)) = AB .
+  eq csGoals(cycleState(PB, KS, AB, GS, N)) = GS .
+  eq csCycle(cycleState(PB, KS, AB, GS, N)) = N .
+
+  *** =============================================================
+  *** PERCEPTION RULES
+  *** =============================================================
+  
+  vars S S2 : String .
+  vars V V2 : Float .
+  vars STI STI2 : Nat .
+  var P : Percept .
+
+  *** Convert percept to knowledge atom
+  rl [perceive-node] :
+      cycleState(percept(S, V) & PB, KS, AB, GS, N)
+    =>
+      cycleState(PB, kNode(S, V, 100) + KS, AB, GS, N) .
+
+  *** =============================================================
+  *** ATTENTION RULES (ECAN-like)
+  *** =============================================================
+
+  *** Spread attention from high-STI to linked atoms
+  crl [attend-spread] :
+      cycleState(PB, kLink(S, S2, V, STI) + kNode(S2, V2, STI2) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kLink(S, S2, V, STI) + kNode(S2, V2, STI2 + 10) + KS, AB, GS, N)
+    if STI > 50 .
+
+  *** Rent collection: decay STI
+  crl [attend-rent] :
+      cycleState(PB, kNode(S, V, STI) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kNode(S, V, sd(STI, 1)) + KS, AB, GS, N)
+    if STI > 0 .
+
+  *** =============================================================
+  *** REASONING RULES (PLN-like)
+  *** =============================================================
+
+  *** Deduction
+  crl [reason-deduce] :
+      cycleState(PB, kLink(S, S2, V, STI) + kLink(S2, S, V2, STI2) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kLink(S, S2, V, STI) + kLink(S2, S, V2, STI2) + 
+                     kLink(S, S, V * V2, 80) + KS, AB, GS, N)
+    if V * V2 > 0.1 .
+
+  *** Modus ponens: if link(A,B) and node(A) high, boost node(B)
+  crl [reason-mp] :
+      cycleState(PB, kLink(S, S2, V, STI) + kNode(S, V2, STI2) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kLink(S, S2, V, STI) + kNode(S, V2, STI2) + 
+                     kNode(S2, V * V2, 70) + KS, AB, GS, N)
+    if V > 0.5 /\ V2 > 0.5 .
+
+  *** =============================================================
+  *** ACTION RULES
+  *** =============================================================
+
+  *** Generate action from high-urgency goal
+  crl [act-from-goal] :
+      cycleState(PB, KS, AB, goal(S, V) >> GS, N)
+    =>
+      cycleState(PB, KS, action("pursue", S) & AB, goal(S, V) >> GS, N)
+    if V > 0.7 .
+
+  *** Execute action (removes from buffer)
+  rl [act-execute] :
+      cycleState(PB, KS, action(S, S2) & AB, GS, N)
+    =>
+      cycleState(PB, kNode(S2, 0.8, 50) + KS, AB, GS, N) .
+
+  *** =============================================================
+  *** LEARNING RULES
+  *** =============================================================
+
+  *** Strengthen frequently-attended links
+  crl [learn-strengthen] :
+      cycleState(PB, kLink(S, S2, V, STI) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kLink(S, S2, min(1.0, V + 0.01), STI) + KS, AB, GS, N)
+    if STI > 80 .
+
+  *** Weaken neglected links
+  crl [learn-weaken] :
+      cycleState(PB, kLink(S, S2, V, STI) + KS, AB, GS, N)
+    =>
+      cycleState(PB, kLink(S, S2, max(0.0, V - 0.01), STI) + KS, AB, GS, N)
+    if STI < 10 /\ V > 0.0 .
+
+  *** Advance cycle counter
+  rl [tick] :
+      cycleState(PB, KS, AB, GS, N)
+    =>
+      cycleState(PB, KS, AB, GS, N + 1) .
+
+endm
+
+*** =================================================================
+*** STRATEGY MODULE: The Cognitive Cycle as Composable Strategy
+*** =================================================================
+
+smod OC-COGNITIVE-CYCLE is
+  protecting OC-CYCLE-STATE .
+
+  *** =============================================================
+  *** ATOMIC STRATEGIES (one step of each cognitive process)
+  *** =============================================================
+  
+  strat perceive : @ CycleState .
+  sd perceive := perceive-node .
+
+  strat attend : @ CycleState .
+  sd attend := attend-spread | attend-rent .
+
+  strat reason : @ CycleState .
+  sd reason := reason-deduce | reason-mp .
+
+  strat act : @ CycleState .
+  sd act := act-from-goal | act-execute .
+
+  strat learn : @ CycleState .
+  sd learn := learn-strengthen | learn-weaken .
+
+  strat doTick : @ CycleState .
+  sd doTick := tick .
+
+  *** =============================================================
+  *** COMPOSITE STRATEGIES (cognitive cycle patterns)
+  *** =============================================================
+
+  *** The basic cognitive cycle: perceive, attend, reason, act, learn, tick
+  strat basicCycle : @ CycleState .
+  sd basicCycle := try(perceive) ; try(attend) ; try(reason) ; try(act) ; try(learn) ; doTick .
+
+  *** Focused reasoning: multiple reasoning steps before acting
+  strat deepReason : @ CycleState .
+  sd deepReason := try(perceive) ; try(attend) ; (reason *) ; try(act) ; try(learn) ; doTick .
+
+  *** Reactive mode: perceive and act immediately, minimal reasoning
+  strat reactive : @ CycleState .
+  sd reactive := try(perceive) ; try(act) ; doTick .
+
+  *** Contemplative mode: lots of attention and reasoning, no action
+  strat contemplative : @ CycleState .
+  sd contemplative := try(perceive) ; (attend *) ; (reason *) ; try(learn) ; doTick .
+
+  *** Learning mode: focus on strengthening/weakening
+  strat learningMode : @ CycleState .
+  sd learningMode := try(perceive) ; try(attend) ; (learn *) ; doTick .
+
+  *** Run N cycles of a given strategy
+  strat runCycles : Nat @ CycleState .
+  sd runCycles(0) := idle .
+  sd runCycles(s(N:Nat)) := basicCycle ; runCycles(N:Nat) .
+
+  *** Run until no more percepts (drain perception buffer)
+  strat drainPercepts : @ CycleState .
+  sd drainPercepts := (perceive +) or-else idle .
+
+  *** Adaptive cycle: try reactive first (if perceive works), else deep reason, else contemplate
+  strat adaptiveCycle : @ CycleState .
+  sd adaptiveCycle := 
+     (test(perceive) ; reactive)
+     or-else
+     (test(act) ; deepReason)
+     or-else
+     contemplative .
+
+  *** The full AGI loop: adaptive cycles forever (until fixpoint)
+  strat agiLoop : @ CycleState .
+  sd agiLoop := (adaptiveCycle ; agiLoop) or-else idle .
+
+  *** Bounded AGI loop
+  strat boundedAGI : Nat @ CycleState .
+  sd boundedAGI(0) := idle .
+  sd boundedAGI(s(N:Nat)) := adaptiveCycle ; boundedAGI(N:Nat) .
+
+endsm
