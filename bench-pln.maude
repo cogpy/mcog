@@ -1,0 +1,95 @@
+***( ================================================================
+***  OpenCog in Pure Maude — PLN Benchmark  (Phase 6.4)
+***
+***  Measures PLN forward-chaining deduction over a synthetic
+***  animal-taxonomy of increasing depth.
+***
+***  Taxonomy (depth 4):
+***    animal → living-thing → entity
+***    cat → animal  →  cat can reach entity in 2 deduction steps
+***    poodle → dog → animal → living-thing  (depth 3)
+***
+***  We time how many rewrite steps are needed to derive all
+***  transitive inheritance links in each taxonomy.
+***
+***  Usage:
+***    maude bench-pln.maude
+*** ================================================================ )
+
+set show timing on .
+set show advisories off .
+
+load pln.maude
+
+*** =================================================================
+*** BENCHMARK 1: Single-level deduction (depth 1)
+*** =================================================================
+
+search [1] in OC-PLN-RULES :
+  [concept("cat"),         stv(0.5, 0.9), defaultAV]
+  [concept("animal"),      stv(0.5, 0.8), defaultAV]
+  [concept("living"),      stv(0.5, 0.7), defaultAV]
+  [inheritance(concept("cat"),    concept("animal")), stv(0.9, 0.9), defaultAV]
+  [inheritance(concept("animal"), concept("living")), stv(0.9, 0.8), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("cat"), concept("living"))) == true .
+
+*** =================================================================
+*** BENCHMARK 2: Depth-2 taxonomy
+*** =================================================================
+
+search [1] in OC-PLN-RULES :
+  [concept("poodle"),      stv(0.5, 0.9), defaultAV]
+  [concept("dog"),         stv(0.5, 0.9), defaultAV]
+  [concept("animal"),      stv(0.5, 0.8), defaultAV]
+  [concept("living"),      stv(0.5, 0.7), defaultAV]
+  [concept("entity"),      stv(0.5, 0.6), defaultAV]
+  [inheritance(concept("poodle"), concept("dog")),    stv(0.9, 0.9), defaultAV]
+  [inheritance(concept("dog"),    concept("animal")), stv(0.9, 0.9), defaultAV]
+  [inheritance(concept("animal"), concept("living")), stv(0.9, 0.8), defaultAV]
+  [inheritance(concept("living"), concept("entity")), stv(0.9, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("poodle"), concept("living"))) == true .
+
+*** =================================================================
+*** BENCHMARK 3: Full depth-4 chain
+*** =================================================================
+
+search [1] in OC-PLN-RULES :
+  [concept("fido"),        stv(0.5, 0.9), defaultAV]
+  [concept("poodle"),      stv(0.5, 0.9), defaultAV]
+  [concept("dog"),         stv(0.5, 0.9), defaultAV]
+  [concept("animal"),      stv(0.5, 0.8), defaultAV]
+  [concept("living"),      stv(0.5, 0.7), defaultAV]
+  [concept("entity"),      stv(0.5, 0.6), defaultAV]
+  [inheritance(concept("fido"),   concept("poodle")), stv(0.9, 0.95), defaultAV]
+  [inheritance(concept("poodle"), concept("dog")),    stv(0.9, 0.9),  defaultAV]
+  [inheritance(concept("dog"),    concept("animal")), stv(0.9, 0.9),  defaultAV]
+  [inheritance(concept("animal"), concept("living")), stv(0.9, 0.8),  defaultAV]
+  [inheritance(concept("living"), concept("entity")), stv(0.9, 0.7),  defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("fido"), concept("entity"))) == true .
+
+*** =================================================================
+*** BENCHMARK 4: FC-State deduction (depth 2)
+*** =================================================================
+
+search [1] in OC-URE-FORWARD-CHAINER :
+  fcState(
+    [concept("tabby"),   stv(0.5, 0.9), defaultAV]
+    [concept("cat"),     stv(0.5, 0.9), defaultAV]
+    [concept("animal"),  stv(0.5, 0.8), defaultAV]
+    [concept("living"),  stv(0.5, 0.7), defaultAV]
+    [inheritance(concept("tabby"),  concept("cat")),    stv(0.95, 0.9), defaultAV]
+    [inheritance(concept("cat"),    concept("animal")), stv(0.9, 0.9),  defaultAV]
+    [inheritance(concept("animal"), concept("living")), stv(0.9, 0.8),  defaultAV],
+    urRule("deduction", 1.0, "pln-deduction"),
+    10, 0, concept("tabby"))
+=>+ FC:FCState
+such that
+  hasAtom(fcAS(FC:FCState), inheritance(concept("tabby"), concept("living"))) == true .
+
+q

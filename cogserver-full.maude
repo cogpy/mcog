@@ -1,0 +1,83 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-COG-SERVER-FULL Module  (Phase 3.1)
+***
+***  CogServerFull extends the basic CogServerState with:
+***    - An InferenceStrategy (from OC-COGNITIVE-SYNERGY) that
+***      determines which rule type to prioritise each cycle.
+***    - An AppRecordSet (from OC-INFERENCE-MONITOR) tracking
+***      per-rule success rates.
+***    - Strategy switching: when the dominant rule's success rate
+***      falls below 0.2 after ≥ 10 attempts, rotate to the next
+***      strategy step.
+***
+***  This module lives in its own file to break the load-cycle that
+***  would arise if ure.maude loaded meta-opencog.maude and vice versa.
+*** ================================================================ )
+
+load ure.maude
+load meta-opencog.maude
+
+*** =================================================================
+*** COGSERVER WITH STRATEGY  (Phase 3.1)
+*** =================================================================
+
+mod OC-COG-SERVER-FULL is
+  protecting OC-COG-SERVER .
+  protecting OC-INFERENCE-MONITOR .
+  protecting OC-COGNITIVE-SYNERGY .
+
+  sort CogServerFull .
+  op cogServerFull : AtomSpace AgentQueue URRuleBase
+                     InferenceStrategy AppRecordSet Nat
+                   -> CogServerFull [ctor] .
+
+  op csfAS      : CogServerFull -> AtomSpace .
+  op csfAgents  : CogServerFull -> AgentQueue .
+  op csfRB      : CogServerFull -> URRuleBase .
+  op csfStrat   : CogServerFull -> InferenceStrategy .
+  op csfRecords : CogServerFull -> AppRecordSet .
+  op csfCycle   : CogServerFull -> Nat .
+
+  var AS : AtomSpace .
+  var AQ : AgentQueue .
+  var RB : URRuleBase .
+  var IS : InferenceStrategy .
+  var SS : StrategyStep .
+  var ARS : AppRecordSet .
+  var N : Nat .
+  var MA : MindAgent .
+
+  eq csfAS(cogServerFull(AS, AQ, RB, IS, ARS, N))      = AS .
+  eq csfAgents(cogServerFull(AS, AQ, RB, IS, ARS, N))  = AQ .
+  eq csfRB(cogServerFull(AS, AQ, RB, IS, ARS, N))      = RB .
+  eq csfStrat(cogServerFull(AS, AQ, RB, IS, ARS, N))   = IS .
+  eq csfRecords(cogServerFull(AS, AQ, RB, IS, ARS, N)) = ARS .
+  eq csfCycle(cogServerFull(AS, AQ, RB, IS, ARS, N))   = N .
+
+  *** Cognitive cycle: rotate agent queue, record attempt for head step
+  crl [csf-cycle] :
+      cogServerFull(AS, MA -> AQ, RB, SS >>> IS, ARS, N)
+    =>
+      cogServerFull(AS, AQ -> MA, RB, SS >>> IS,
+                    recordAttempt(ARS, stepName(SS)), N + 1)
+    if true .
+
+  *** (Phase 3.1) Strategy switching: rotate when dominant step underperforms
+  crl [csf-switch-strategy] :
+      cogServerFull(AS, AQ, RB, SS >>> IS, ARS, N)
+    =>
+      cogServerFull(AS, AQ, RB, IS >>> SS, ARS, N)
+    if rarAttempts(recordAttempt(ARS, stepName(SS))) >= 10
+    /\ successRate(recordAttempt(ARS, stepName(SS))) < 0.2 .
+
+  *** Convenience constructor
+  op newCogServerFull : AtomSpace InferenceStrategy -> CogServerFull .
+  eq newCogServerFull(AS, IS) =
+     cogServerFull(AS,
+                   plnAgent -> ecanAgent -> mosesAgent,
+                   defaultPLNRuleBase,
+                   IS,
+                   emptyARS,
+                   0) .
+
+endm

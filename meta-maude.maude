@@ -1,0 +1,98 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-META-MAUDE Module  (Phase 4.1)
+***
+***  True Maude meta-level bridge.
+***
+***  This module wraps Maude's built-in META-LEVEL to expose
+***  meta-reduction, meta-application, and meta-search as first-class
+***  Maude operations that can be called from the OpenCog execution
+***  engine via ExecutionOutputLink(groundedSchema("maude-reduce"), …).
+***
+***  Design note:
+***  We import META-LEVEL here WITHOUT importing OC-ATOM-SPACE so
+***  that Maude's TermList _,_ and OcAtomList _,_ are never visible
+***  in the same module, sidestepping the operator conflict described
+***  in meta-opencog.maude.  Integration with the atom-space happens
+***  through the OC-META-BRIDGE module below, which brings everything
+***  together using distinct sort hierarchies.
+*** ================================================================ )
+
+*** =================================================================
+*** META-LEVEL CORE WRAPPER
+*** =================================================================
+
+fmod OC-META-MAUDE is
+  protecting META-LEVEL .
+  protecting STRING .
+
+  *** Opaque result sort so callers need not import META-LEVEL
+  sort MetaResult .
+  op metaOk   : Term -> MetaResult [ctor] .
+  op metaFail : -> MetaResult [ctor] .
+
+  var M : Qid .
+  var R : Qid .
+  var T : Term .
+  var RP : ResultPair .
+
+  *** Reduce a term in a named Maude module.
+  op doMetaReduce : Qid Term -> MetaResult .
+  ceq doMetaReduce(M, T) = metaOk(getTerm(RP))
+    if RP := metaReduce(M, T) .
+  eq doMetaReduce(M, T) = metaFail [owise] .
+
+  *** Apply one labelled rewrite rule to a term (one step).
+  op doMetaApply : Qid Qid Term -> MetaResult .
+  var RP2 : Result4Tuple? .
+  ceq doMetaApply(M, R, T) = metaOk(getTerm(downTerm(RP2, 'metaFail.MetaResult)))
+    if RP2 := metaApply(M, T, R, none, 0) /\ RP2 =/= failure .
+  eq doMetaApply(M, R, T) = metaFail [owise] .
+
+  *** Search (breadth-first, limit N) for a state satisfying condition.
+  op doMetaSearch : Qid Term Term Condition Qid Nat -> MetaResult .
+  var Cond : Condition .
+  var RuleApp : Qid .
+  var N : Nat .
+  var RT : ResultTriple? .
+  ceq doMetaSearch(M, T, Pat, Cond, RuleApp, N) =
+        metaOk(getTerm(RT))
+    if RT := metaSearch(M, T, Pat, Cond, '+ , N, 0) /\ RT =/= failure .
+  eq doMetaSearch(M, T, Pat, Cond, RuleApp, N) = metaFail [owise] .
+
+  *** Convenience: get the Term payload or return a default
+  op fromMetaResult : MetaResult Term -> Term .
+  eq fromMetaResult(metaOk(T), T) = T .
+  eq fromMetaResult(metaFail, T)  = T [owise] .
+
+endfm
+
+*** =================================================================
+*** META-LEVEL QUOTE/UNQUOTE HELPERS
+*** =================================================================
+
+fmod OC-META-QUOTE is
+  protecting OC-META-MAUDE .
+
+  *** Module qid for the main OpenCog module
+  op oc-module : -> Qid .
+  eq oc-module = 'OPENCOG .
+
+  *** Common module qids
+  op pln-module  : -> Qid .
+  op ecan-module : -> Qid .
+  op ure-module  : -> Qid .
+  eq pln-module  = 'OC-PLN-RULES .
+  eq ecan-module = 'OC-ECAN .
+  eq ure-module  = 'OC-URE-FORWARD-CHAINER .
+
+  *** Lift a ConceptNode name to a Maude constant term in module M
+  op quoteConceptNode : String Qid -> Term .
+  var S : String .
+  var M : Qid .
+  eq quoteConceptNode(S, M) = 'concept[qid("\"" + S + "\"" + ".String")] .
+
+  *** Lift a String to a Maude Qid
+  op strToQid : String -> Qid .
+  eq strToQid(S) = qid(S) .
+
+endfm

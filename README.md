@@ -100,6 +100,64 @@ crl [psi-fire-rule] :
   if DU > 0.3 /\ tvStrength(TV) > 0.5 .
 ```
 
+## Testing
+
+Run the full test suite (4 test files, 300+ assertions and searches):
+
+```bash
+# Phase 1 — core integration tests
+python3 .github/scripts/validate-tests.py test-opencog.maude
+
+# Phase 2 — advanced subsystem tests
+python3 .github/scripts/validate-tests.py test-new-modules.maude
+
+# Comprehensive coverage tests (all untested modules)
+python3 .github/scripts/validate-tests.py test-coverage.maude
+
+# Algebraic property tests (Phase 6.3)
+python3 .github/scripts/validate-tests.py test-properties.maude
+```
+
+Benchmarks can be run directly with Maude (`set show timing on` reports rewrite-step counts):
+
+```bash
+maude bench-pln.maude            # PLN deduction chains of depth 1–4
+maude bench-ecan.maude           # ECAN spreading and forgetting
+maude bench-pattern-miner.maude  # pattern mining at various dataset sizes
+```
+
+## New Modules (Phase 1–6 Roadmap)
+
+### Phase 1 — Correctness Hardening
+* **truth-value.maude**: Added `tvAnd`/`tvOr`/`tvRevision`/`tvNegate` for `ctv` and `itv` variants.  General `[owise]` fallbacks handle mixed-type operands by projecting to strength/confidence.
+* **attention-value.maude**: Fixed non-linear `setVLTI` equation (was `V = V`; now uses distinct `V2`).
+* **atom-space.maude**: Added `mergeTV` (applies PLN revision if atom already exists) and `getAtomList` (enumerates all atom keys in the space).
+* **pln.maude**: Deduction rule now checks `not hasAtom(…, inheritance(A,C))` to prevent duplicate derivation.  Induction and abduction require minimum confidence ≥ 0.1.
+* **ecan.maude**: Added `totalSTI`/`normalizeSTI` to the config module; new `OC-ECAN-PARAM` system module provides `ecanState`-wrapped, fully parameterised versions of every spreading, rent, forgetting, and Hebbian rule.
+
+### Phase 2 — Missing Core Features
+* **ure.maude**: Added `maxWeightRule` for weighted rule selection; BC modus-ponens decomposition rule; `emptyRB` total-weight invariant.
+* **cogserver-full.maude**: New `OC-COG-SERVER-FULL` module with `CogServerFull` — adds `InferenceStrategy` and `AppRecordSet` to the server state; `csf-cycle` records per-rule attempts; `csf-switch-strategy` rotates the strategy when success rate falls below 0.2.
+* **pattern-matcher.maude**: Multi-clause `BindLink` matching via `andLink` patterns; new `OC-TYPED-UNIFICATION` module for `TypedVariableLink` type-constrained unification; new `OC-GLOB-MATCH` module for `GlobNode` sequence matching.
+* **moses.maude**: New `OC-MOSES-FITNESS` module adds `DataSet`/`DataPoint` types and `evalFitness : BoolExpr DataSet -> Float`; `OC-MOSES-FITNESS-EVOLVE` wires fitness evaluation into the metapopulation loop.
+
+### Phase 3 — Advanced Cognitive Synergy
+* **ghost-psi.maude**: `psi-fire-rule` now increments STI of `Ctx` and `Act` atoms (ECAN coupling); new `psi-demand-decay` homeostasis rule; new `ghost-rejoinder` and `ghost-record-topic` rules for multi-turn dialogue.
+* **pattern-miner.maude**: `mine-inh-pattern` now injects a PLN `InheritanceLink` with TV derived from support fraction and I-Surprisingness; new `OC-PATTERN-GENERALISE` module provides `generalise`, `extendPattern`, and `extendMinedPattern`.
+
+### Phase 4 — Meta-Level and Reflection
+* **meta-opencog.maude**: `OC-SELF-MODIFY` now carries a `URRuleBase` in `SelfModState`; `register-type` injects a corresponding PLN deduction rule into the base; new `adapt-strategy` removes under-performing rules (success rate < 0.1 after ≥ 10 attempts); new `promote-rule` boosts well-performing rules.
+* **meta-maude.maude** *(new)*: `OC-META-MAUDE` wraps Maude's built-in `META-LEVEL` (without importing `OC-ATOM-SPACE` to avoid `_,_` conflicts); exposes `doMetaReduce`, `doMetaApply`, `doMetaSearch`.  `OC-META-QUOTE` provides module qids and atom-quoting helpers.
+
+### Phase 5 — I/O and External Integration
+* **io-bridge.maude** *(new)*: `OC-SCHEME-SERIAL` serialises any `OcAtom` to Scheme S-expression or JSON strings; `OC-EXTERNAL-SYNC` provides a stub `importAtoms` hook for future REST/Python bridge integration; `OC-ROBOTICS` models sensor and actuator atoms (`sensorSonar`, `motorMove`, `speechSay`) and a `tick-decay` rule that ages short-lived atoms by −5 STI per cycle.
+
+### Phase 6 — Verification and Formal Properties
+* **test-properties.maude** *(new)*: Algebraic laws — `tvAnd`/`tvOr` commutativity and associativity, `mergeTV` idempotence, ECAN rent monotonicity, forgetting termination, `normalizeSTI` budget invariant, `tvRevision` commutativity, PLN duplicate-derivation guard.
+* **bench-pln.maude** *(new)*: PLN deduction benchmarks over taxonomy chains of depth 1–4.
+* **bench-ecan.maude** *(new)*: ECAN benchmarks — single-hop spreading, chain spreading, symmetric equilibration, parameterised ECAN.
+* **bench-pattern-miner.maude** *(new)*: Pattern miner benchmarks — small/medium datasets, mixed link types, support count accuracy, I-Surprisingness range.
+
 ## License
 
 AGPL-3.0 (following OpenCog).

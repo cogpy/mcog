@@ -18,6 +18,12 @@
 
 load atom-space.maude
 
+*** ----------------------------------------------------------------
+*** NOTE: we load ure.maude here to access URRuleBase and inference
+*** monitoring so OC-SELF-MODIFY can inject rules into the rule base.
+*** ----------------------------------------------------------------
+load ure.maude
+
 *** =================================================================
 *** TYPE INTROSPECTION
 *** =================================================================
@@ -259,6 +265,7 @@ endfm
 
 mod OC-SELF-MODIFY is
   protecting OC-INFERENCE-MONITOR .
+  protecting OC-URE-RULE-BASE .
 
   *** Record of dynamically created types
   sort DynType .
@@ -269,43 +276,52 @@ mod OC-SELF-MODIFY is
   op emptyDTR : -> DynTypeRegistry [ctor] .
   op _;;_ : DynTypeRegistry DynTypeRegistry -> DynTypeRegistry [ctor assoc comm id: emptyDTR] .
 
-  *** Self-modification state
+  *** Self-modification state (Phase 4.2: carries URRuleBase)
   sort SelfModState .
-  op selfModState : AtomSpace DynTypeRegistry AppRecordSet Nat -> SelfModState [ctor] .
+  op selfModState : AtomSpace DynTypeRegistry AppRecordSet URRuleBase Nat -> SelfModState [ctor] .
 
-  op smAS : SelfModState -> AtomSpace .
-  op smTypes : SelfModState -> DynTypeRegistry .
+  op smAS      : SelfModState -> AtomSpace .
+  op smTypes   : SelfModState -> DynTypeRegistry .
   op smRecords : SelfModState -> AppRecordSet .
-  op smCycle : SelfModState -> Nat .
+  op smRB      : SelfModState -> URRuleBase .
+  op smCycle   : SelfModState -> Nat .
 
   var AS : AtomSpace .
   var DTR : DynTypeRegistry .
   var ARS : AppRecordSet .
+  var RB : URRuleBase .
   var N : Nat .
   vars TypeName ParentType : String .
   var A : OcAtom .
   var TV : OcTruthValue .
   var AV : OcAttentionValue .
+  var DT : DynType .
+  var RAR : RuleAppRecord .
 
-  eq smAS(selfModState(AS, DTR, ARS, N)) = AS .
-  eq smTypes(selfModState(AS, DTR, ARS, N)) = DTR .
-  eq smRecords(selfModState(AS, DTR, ARS, N)) = ARS .
-  eq smCycle(selfModState(AS, DTR, ARS, N)) = N .
+  eq smAS(selfModState(AS, DTR, ARS, RB, N))      = AS .
+  eq smTypes(selfModState(AS, DTR, ARS, RB, N))   = DTR .
+  eq smRecords(selfModState(AS, DTR, ARS, RB, N)) = ARS .
+  eq smRB(selfModState(AS, DTR, ARS, RB, N))      = RB .
+  eq smCycle(selfModState(AS, DTR, ARS, RB, N))   = N .
 
-  *** Register a new dynamic type (recorded in registry)
+  *** (Phase 4.2) Register a new dynamic type AND inject an inheritance
+  *** rule into the URE rule base so it can be used immediately.
   rl [register-type] :
       selfModState(
         [defineLink(typeNode(TypeName), typeNode(ParentType)), TV, AV] AS,
-        DTR, ARS, N)
+        DTR, ARS, RB, N)
     =>
       selfModState(
         [defineLink(typeNode(TypeName), typeNode(ParentType)), TV, AV] AS,
         dynType(TypeName, ParentType) ;; DTR,
-        ARS, N + 1) .
+        ARS,
+        addRule(RB,
+          urRule(TypeName ++ "-inherits-" ++ ParentType, 0.7,
+                 "pln-deduction")),
+        N + 1) .
 
   *** Introspection: count registered types
   op typeCount : DynTypeRegistry -> Nat .
-  var DT : DynType .
   eq typeCount(emptyDTR) = 0 .
   eq typeCount(DT ;; DTR) = 1 + typeCount(DTR) .
 
@@ -313,5 +329,28 @@ mod OC-SELF-MODIFY is
   op hasType : DynTypeRegistry String -> Bool .
   eq hasType(dynType(TypeName, ParentType) ;; DTR, TypeName) = true .
   eq hasType(DTR, TypeName) = false [owise] .
+
+  *** (Phase 4.3) adapt-strategy: remove a rule from the rule base if its
+  *** success rate is below 0.1 and it has been attempted ≥ 10 times.
+  crl [adapt-strategy] :
+      selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS, RB, N)
+    =>
+      selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS,
+                   removeRule(RB, TypeName), N + 1)
+    if NA >= 10
+    /\ (if NA == 0 then 0.0 else float(NS) / float(NA) fi) < 0.1 .
+
+  *** (Phase 4.3) promote-rule: boost the weight of a high-performing rule
+  *** if it is below the cap of 1.0.
+  crl [promote-rule] :
+      selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS,
+                   urRule(TypeName, RW:Float, RL:String) ;; RB, N)
+    =>
+      selfModState(AS, DTR, ruleApp(TypeName, NS, NA) ;; ARS,
+                   urRule(TypeName, clamp01(RW:Float + 0.1), RL:String) ;; RB,
+                   N + 1)
+    if NA >= 5
+    /\ (if NA == 0 then 0.0 else float(NS) / float(NA) fi) > 0.8
+    /\ RW:Float < 1.0 .
 
 endm

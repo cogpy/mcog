@@ -1006,6 +1006,7 @@ search [1] in OC-SELF-MODIFY :
     [defineLink(typeNode("MyNode"), typeNode("ConceptNode")), stv(1.0, 0.9), defaultAV],
     emptyDTR,
     emptyARS,
+    emptyRB,
     0)
 =>+ SMS:SelfModState
 such that hasType(smTypes(SMS:SelfModState), "MyNode") == true .

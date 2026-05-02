@@ -14,6 +14,7 @@
 *** ================================================================ )
 
 load pattern-matcher.maude
+load pln.maude
 
 *** =================================================================
 *** PATTERN REPRESENTATION
@@ -214,6 +215,8 @@ mod OC-PATTERN-MINER is
   *** =============================================================
 
   *** Mine inheritance patterns
+  *** (Phase 3.4) After mining, also inject a PLN InheritanceLink into the AS
+  *** with TV derived from support fraction (strength) and surprisingness (confidence).
   crl [mine-inh-pattern] :
       minerState(
         [inheritance(A, Pat), TV, AV]
@@ -224,6 +227,9 @@ mod OC-PATTERN-MINER is
     =>
       minerState(
         [inheritance(A, Pat), TV, AV]
+        [inheritance(variable("$X"), Pat),
+         stv(float(Sup) / float(Total), clamp01(F)),
+         defaultAV]
         AS,
         PS | minedPat(genInhSeedTo(Pat), Sup, F),
         MC,
@@ -277,3 +283,62 @@ mod OC-PATTERN-MINER is
     /\ F >= minSurprise(MC) .
 
 endm
+
+*** =================================================================
+*** PATTERN GENERALISATION (Phase 3.4)
+*** =================================================================
+*** extend-pattern rules: add a fresh clause to an existing mined
+*** pattern to grow conjunctive patterns.
+
+fmod OC-PATTERN-GENERALISE is
+  protecting OC-PATTERN-MINER .
+  protecting STRING .
+
+  *** Replace the first occurrence of a ground ConceptNode in a pattern
+  *** with a fresh variable, producing a more general pattern.
+  op generalise : OcAtom String -> OcAtom .
+  op generaliseList : OcAtomList String -> OcAtomList .
+
+  vars A A1 A2 : OcAtom .
+  var AL : OcAtomList .
+  var S VName : String .
+  var N : Nat .
+  var F : Float .
+  var MP : MinedPattern .
+
+  *** A concept node is replaced by a fresh variable
+  eq generalise(concept(S), VName) = variable(VName) .
+  *** Other node types are left as-is
+  eq generalise(predicate(S), VName) = predicate(S) .
+  eq generalise(number(S), VName) = number(S) .
+  eq generalise(schema(S), VName) = schema(S) .
+  eq generalise(variable(S), VName) = variable(S) .
+
+  *** Structural recursion: only replace first occurrence
+  eq generalise(inheritance(A1, A2), VName) =
+     inheritance(generalise(A1, VName), generalise(A2, VName)) .
+  eq generalise(member(A1, A2), VName) =
+     member(generalise(A1, VName), generalise(A2, VName)) .
+  eq generalise(implication(A1, A2), VName) =
+     implication(generalise(A1, VName), generalise(A2, VName)) .
+  eq generalise(similarity(A1, A2), VName) =
+     similarity(generalise(A1, VName), generalise(A2, VName)) .
+  eq generalise(A, VName) = A [owise] .
+
+  eq generaliseList(nil, VName) = nil .
+  eq generaliseList((A, AL), VName) = generalise(A, VName), generaliseList(AL, VName) .
+
+  *** Extend a mined pattern by appending a new seed clause as a conjunction
+  op extendMinedPattern : MinedPattern OcAtom -> OcAtom .
+  op extendPattern : OcAtom OcAtom -> OcAtom .
+  var NewClause : OcAtom .
+
+  *** If the existing pattern is already an andLink, add the new clause to it
+  eq extendPattern(andLink(AL), NewClause) = andLink((AL, NewClause)) .
+  *** Otherwise wrap both atoms in a new andLink
+  eq extendPattern(A, NewClause) = andLink((A, NewClause, nil)) [owise] .
+
+  eq extendMinedPattern(minedPat(A, N, F), NewClause) =
+     extendPattern(A, NewClause) .
+
+endfm
