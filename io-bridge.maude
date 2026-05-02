@@ -1,0 +1,228 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-IO-BRIDGE Module  (Phase 5)
+***
+***  I/O and external integration layer:
+***
+***  5.1  Scheme / S-expression serialisation
+***       toScheme : OcAtom -> String
+***       fromScheme helper patterns
+***
+***  5.2  External AtomSpace synchronisation
+***       importAtoms : AtomSpace -> AtomSpace  (stub / no-op)
+***       Wire format: JSON-style strings for atoms
+***
+***  5.3  ROS / robotics integration
+***       - Sensor atoms:   EvaluationLink(groundedPredicate("sensor:X"), …)
+***       - Actuator atoms: ExecutionLink(groundedSchema("motor:X"), …)
+***       - tick rewrite rule: decrement STI of short-lived atoms
+***
+***  Based on: opencog/opencog/atoms/base/Atom.cc  (scheme output)
+***            opencog/atomspace/BackingStore.h     (external sync)
+***            opencog/ros-interface/               (robotics)
+*** ================================================================ )
+
+load atom-space.maude
+
+*** =================================================================
+*** SCHEME / S-EXPRESSION SERIALISATION  (Phase 5.1)
+*** =================================================================
+
+fmod OC-SCHEME-SERIAL is
+  protecting OC-ATOM-SPACE .
+  protecting STRING .
+
+  op toScheme        : OcAtom -> String .
+  op toSchemeList    : OcAtomList -> String .
+  op tvToScheme      : OcTruthValue -> String .
+
+  vars A A1 A2 : OcAtom .
+  var AL : OcAtomList .
+  var TV : OcTruthValue .
+  var S : String .
+  vars F1 F2 : Float .
+
+  *** Node atoms — produce (NodeType "name") strings
+  eq toScheme(concept(S))           = "(ConceptNode \"" + S + "\")" .
+  eq toScheme(predicate(S))         = "(PredicateNode \"" + S + "\")" .
+  eq toScheme(number(S))            = "(NumberNode \"" + S + "\")" .
+  eq toScheme(schema(S))            = "(SchemaNode \"" + S + "\")" .
+  eq toScheme(variable(S))          = "(VariableNode \"" + S + "\")" .
+  eq toScheme(anchor(S))            = "(AnchorNode \"" + S + "\")" .
+  eq toScheme(groundedSchema(S))    = "(GroundedSchemaNode \"" + S + "\")" .
+  eq toScheme(groundedPredicate(S)) = "(GroundedPredicateNode \"" + S + "\")" .
+  eq toScheme(typeNode(S))          = "(TypeNode \"" + S + "\")" .
+  eq toScheme(wordNode(S))          = "(WordNode \"" + S + "\")" .
+
+  *** Binary link atoms
+  eq toScheme(inheritance(A1, A2)) =
+     "(InheritanceLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(implication(A1, A2)) =
+     "(ImplicationLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(equivalence(A1, A2)) =
+     "(EquivalenceLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(similarity(A1, A2)) =
+     "(SimilarityLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(member(A1, A2)) =
+     "(MemberLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(subset(A1, A2)) =
+     "(SubsetLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(asymHebbian(A1, A2)) =
+     "(AsymmetricHebbianLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(symHebbian(A1, A2)) =
+     "(SymmetricHebbianLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(stateLink(A1, A2)) =
+     "(StateLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+  eq toScheme(defineLink(A1, A2)) =
+     "(DefineLink " + toScheme(A1) + " " + toScheme(A2) + ")" .
+
+  *** N-ary link atoms
+  eq toScheme(evaluation(A1, AL)) =
+     "(EvaluationLink " + toScheme(A1) + " " + toSchemeList(AL) + ")" .
+  eq toScheme(andLink(AL)) =
+     "(AndLink " + toSchemeList(AL) + ")" .
+  eq toScheme(orLink(AL)) =
+     "(OrLink " + toSchemeList(AL) + ")" .
+  eq toScheme(notLink(A1)) =
+     "(NotLink " + toScheme(A1) + ")" .
+
+  *** Fallback
+  eq toScheme(A) = "(UnknownAtom)" [owise] .
+
+  *** List helper (space-separated)
+  eq toSchemeList(nil) = "" .
+  eq toSchemeList((A, nil)) = toScheme(A) .
+  eq toSchemeList((A, AL)) = toScheme(A) + " " + toSchemeList(AL) .
+
+  *** TruthValue helper
+  eq tvToScheme(stv(F1, F2)) =
+     "(stv " + string(F1, 6) + " " + string(F2, 6) + ")" .
+  eq tvToScheme(TV) = "(stv 0.0 0.0)" [owise] .
+
+  *** Serialise an entire AtomSpace
+  op atomSpaceToScheme : AtomSpace -> String .
+  var AV : OcAttentionValue .
+  var AS : AtomSpace .
+  var AA : AnnotatedAtom .
+
+  eq atomSpaceToScheme(emptyAS) = "" .
+  eq atomSpaceToScheme([A, TV, AV] AS) =
+     toScheme(A) + " " + tvToScheme(TV) + "\n" + atomSpaceToScheme(AS) .
+
+endfm
+
+*** =================================================================
+*** EXTERNAL ATOMSPACE SYNC STUB  (Phase 5.2)
+*** =================================================================
+*** importAtoms is a no-op stub that represents the hook point for
+*** reading atoms from an external OpenCog REST / Python bridge.
+*** In a deployed system the equation body would be replaced by an
+*** I/O call via Maude's external object interface.
+
+fmod OC-EXTERNAL-SYNC is
+  protecting OC-ATOM-SPACE .
+
+  *** Stub: returns AS unchanged (external I/O not available in core Maude)
+  op importAtoms : AtomSpace -> AtomSpace .
+  var AS : AtomSpace .
+  eq importAtoms(AS) = AS .
+
+  *** JSON atom wire format helpers (produce String representations)
+  op atomToJSON  : OcAtom -> String .
+  op listToJSON  : OcAtomList -> String .
+
+  vars A A1 A2 : OcAtom .
+  var AL : OcAtomList .
+  var S : String .
+
+  eq atomToJSON(concept(S)) =
+     "{\"type\":\"ConceptNode\",\"name\":\"" + S + "\"}" .
+  eq atomToJSON(predicate(S)) =
+     "{\"type\":\"PredicateNode\",\"name\":\"" + S + "\"}" .
+  eq atomToJSON(number(S)) =
+     "{\"type\":\"NumberNode\",\"name\":\"" + S + "\"}" .
+  eq atomToJSON(variable(S)) =
+     "{\"type\":\"VariableNode\",\"name\":\"" + S + "\"}" .
+  eq atomToJSON(inheritance(A1, A2)) =
+     "{\"type\":\"InheritanceLink\",\"outgoing\":[" +
+     atomToJSON(A1) + "," + atomToJSON(A2) + "]}" .
+  eq atomToJSON(implication(A1, A2)) =
+     "{\"type\":\"ImplicationLink\",\"outgoing\":[" +
+     atomToJSON(A1) + "," + atomToJSON(A2) + "]}" .
+  eq atomToJSON(member(A1, A2)) =
+     "{\"type\":\"MemberLink\",\"outgoing\":[" +
+     atomToJSON(A1) + "," + atomToJSON(A2) + "]}" .
+  eq atomToJSON(evaluation(A1, AL)) =
+     "{\"type\":\"EvaluationLink\",\"outgoing\":[" +
+     atomToJSON(A1) + "," + listToJSON(AL) + "]}" .
+  eq atomToJSON(A) = "{\"type\":\"UnknownAtom\"}" [owise] .
+
+  eq listToJSON(nil) = "" .
+  eq listToJSON((A, nil)) = atomToJSON(A) .
+  eq listToJSON((A, AL)) = atomToJSON(A) + "," + listToJSON(AL) .
+
+endfm
+
+*** =================================================================
+*** ROBOTICS INTEGRATION  (Phase 5.3)
+*** =================================================================
+*** Models sensor readings and actuator commands as short-lived atoms
+*** in the AtomSpace.  A `tick` rewrite rule ages atoms by decrementing
+*** their STI each cycle; atoms below the forgetting threshold are
+*** eventually purged by the ECAN forgetting rule.
+
+mod OC-ROBOTICS is
+  protecting OC-ATOM-SPACE .
+
+  vars A : OcAtom .
+  var TV : OcTruthValue .
+  vars STI LTI : Int .
+  var VB : Bool .
+  var AS : AtomSpace .
+
+  *** ---------------------------------------------------------------
+  *** Sensor atom constructors (convenience)
+  *** ---------------------------------------------------------------
+
+  *** Sonar distance reading: EvaluationLink(groundedPredicate("sensor:sonar"), …)
+  op sensorSonar : String -> OcAtom .
+  var DistStr : String .
+  eq sensorSonar(DistStr) =
+     evaluation(groundedPredicate("sensor:sonar"), (number(DistStr), nil)) .
+
+  *** Camera object detection
+  op sensorCamera : String -> OcAtom .
+  var ObjStr : String .
+  eq sensorCamera(ObjStr) =
+     evaluation(groundedPredicate("sensor:camera"), (concept(ObjStr), nil)) .
+
+  *** ---------------------------------------------------------------
+  *** Actuator atom constructors (convenience)
+  *** ---------------------------------------------------------------
+
+  *** Motor move command: ExecutionLink(groundedSchema("motor:move"), speed dir)
+  op motorMove : String String -> OcAtom .
+  vars SpeedStr DirStr : String .
+  eq motorMove(SpeedStr, DirStr) =
+     execution(groundedSchema("motor:move"), (number(SpeedStr), number(DirStr), nil)) .
+
+  *** Speech output command
+  op speechSay : String -> OcAtom .
+  var Utterance : String .
+  eq speechSay(Utterance) =
+     execution(groundedSchema("speech:say"), (concept(Utterance), nil)) .
+
+  *** ---------------------------------------------------------------
+  *** TICK rule: age all non-VLTI atoms by −5 STI per tick.
+  *** Sensor atoms are expected to have low initial STI (e.g. 10) so
+  *** they are forgotten after ~2 ticks if not re-stimulated.
+  *** ---------------------------------------------------------------
+
+  crl [tick-decay] :
+      [A, TV, av(STI, LTI, false)]
+      AS
+    =>
+      [A, TV, av(STI - 5, LTI, false)]
+      AS
+    if STI > -400 .
+
+endm

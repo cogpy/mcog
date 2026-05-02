@@ -242,3 +242,66 @@ mod OC-MOSES-EVOLVE is
     if S > SBest .
 
 endm
+
+*** =================================================================
+*** MOSES FITNESS EVALUATION (Phase 2.5)
+*** =================================================================
+
+fmod OC-MOSES-FITNESS is
+  protecting OC-COMBO-EVAL .
+  protecting OC-MOSES-POPULATION .
+  protecting NAT .
+
+  *** A single labelled training example: (input environment, expected output)
+  sort DataPoint .
+  sort DataSet .
+  subsort DataPoint < DataSet .
+  op emptyDS  : -> DataSet [ctor] .
+  op dp       : OcEnvironment Bool -> DataPoint [ctor] .
+  op _&_      : DataSet DataSet -> DataSet [ctor assoc comm id: emptyDS] .
+
+  *** Evaluate program accuracy over a DataSet (proportion correct)
+  op evalFitness    : BoolExpr DataSet -> Float .
+  op evalFitnessAux : BoolExpr DataSet Nat Nat -> Float .
+
+  vars P : BoolExpr .
+  var  DS : DataSet .
+  var  Env : OcEnvironment .
+  var  Expected : Bool .
+  vars Correct Total : Nat .
+
+  eq evalFitness(P, DS) = evalFitnessAux(P, DS, 0, 0) .
+
+  eq evalFitnessAux(P, emptyDS, Correct, Total) =
+     if Total == 0 then 0.0 else float(Correct) / float(Total) fi .
+
+  eq evalFitnessAux(P, dp(Env, Expected) & DS, Correct, Total) =
+     evalFitnessAux(P, DS,
+       Correct + (if evalBool(P, Env) == Expected then 1 else 0 fi),
+       Total + 1) .
+
+endfm
+
+*** =================================================================
+*** MOSES FITNESS-DRIVEN EVOLUTION (Phase 2.5 — wires fitness into loop)
+*** =================================================================
+
+mod OC-MOSES-FITNESS-EVOLVE is
+  protecting OC-MOSES-FITNESS .
+  protecting OC-MOSES-EVOLVE .
+
+  vars P PBest : BoolExpr .
+  vars S SBest NewS : Float .
+  var  D : Deme .
+  var  DS : DataSet .
+  var  N : Nat .
+
+  *** After mutation (score == 0.0), re-evaluate against the training set
+  *** and update the metapopulation if the new score beats the best.
+  crl [rescore-and-update] :
+      metapop(scored(P, 0.0) & D, PBest, SBest, N) & DS
+    =>
+      metapop(D, P, NewS, N + 1) & DS
+    if NewS := evalFitness(P, DS) /\ NewS > SBest .
+
+endm

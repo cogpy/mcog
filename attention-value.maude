@@ -35,7 +35,7 @@ fmod OC-ATTENTION-VALUE is
 
   *** Variables
   vars S L Threshold Delta : Int .
-  var V : Bool .
+  vars V NewVLTI : Bool .
 
   *** Equations
   eq defaultAV = av(0, 0, false) .
@@ -51,7 +51,7 @@ fmod OC-ATTENTION-VALUE is
   eq decSTI(av(S, L, V), Delta) = av(S - Delta, L, V) .
   eq incLTI(av(S, L, V), Delta) = av(S, L + Delta, V) .
   eq decLTI(av(S, L, V), Delta) = av(S, L - Delta, V) .
-  eq setVLTI(av(S, L, V), V) = av(S, L, V) .
+  eq setVLTI(av(S, L, V), NewVLTI) = av(S, L, NewVLTI) .
   
   eq inAttentionalFocus(av(S, L, V), Threshold) = S > Threshold .
   eq inAttentionalFocus(nullAV, Threshold) = false .

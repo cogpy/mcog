@@ -1,0 +1,111 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Pattern Miner Benchmark  (Phase 6.4)
+***
+***  Measures OC-PATTERN-MINER performance over datasets of
+***  increasing size.
+***
+***  Benchmarks:
+***  1.  Small dataset: 5 inheritance links, minSupport=2
+***  2.  Medium dataset: 10 links, minSupport=3
+***  3.  Mixed link types: inheritance + member + implication
+***  4.  Support counting accuracy check
+***  5.  I-Surprisingness computation across a range of values
+***
+***  Usage:
+***    maude bench-pattern-miner.maude
+*** ================================================================ )
+
+set show timing on .
+set show advisories off .
+
+load pattern-miner.maude
+
+*** =================================================================
+*** BENCHMARK 1: Small inheritance dataset (5 atoms, minSupport=2)
+*** =================================================================
+*** Five animals inheriting from "animal" — pattern X→animal should
+*** have support 5, which exceeds minSupport=2.
+
+search [1] in OC-PATTERN-MINER :
+  minerState(
+    [inheritance(concept("cat"),   concept("animal")), stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("dog"),   concept("animal")), stv(0.8, 0.8), defaultAV]
+    [inheritance(concept("bird"),  concept("animal")), stv(0.8, 0.7), defaultAV]
+    [inheritance(concept("fish"),  concept("animal")), stv(0.7, 0.6), defaultAV]
+    [inheritance(concept("snake"), concept("animal")), stv(0.7, 0.6), defaultAV],
+    emptyPS,
+    defaultMinerConfig,
+    0)
+=>+ MS:MinerState
+such that
+  psSize(msPatterns(MS:MinerState)) > 0 .
+
+*** =================================================================
+*** BENCHMARK 2: Medium dataset (10 links, minSupport=3)
+*** =================================================================
+
+search [1] in OC-PATTERN-MINER :
+  minerState(
+    [inheritance(concept("poodle"),  concept("dog")),     stv(0.9, 0.9), defaultAV]
+    [inheritance(concept("labrador"),concept("dog")),     stv(0.9, 0.9), defaultAV]
+    [inheritance(concept("bulldog"), concept("dog")),     stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("dog"),     concept("canine")),  stv(0.9, 0.9), defaultAV]
+    [inheritance(concept("cat"),     concept("feline")),  stv(0.9, 0.9), defaultAV]
+    [inheritance(concept("tiger"),   concept("feline")),  stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("lion"),    concept("feline")),  stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("canine"),  concept("animal")),  stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("feline"),  concept("animal")),  stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("animal"),  concept("living")),  stv(0.9, 0.7), defaultAV],
+    emptyPS,
+    defaultMinerConfig,
+    0)
+=>+ MS:MinerState
+such that
+  psSize(msPatterns(MS:MinerState)) >= 2 .
+
+*** =================================================================
+*** BENCHMARK 3: Mixed link types
+*** =================================================================
+
+search [1] in OC-PATTERN-MINER :
+  minerState(
+    [inheritance(concept("cat"), concept("animal")),  stv(0.9, 0.8), defaultAV]
+    [member(concept("felix"),    concept("cat")),     stv(0.9, 0.8), defaultAV]
+    [member(concept("tom"),      concept("cat")),     stv(0.9, 0.8), defaultAV]
+    [member(concept("whiskers"), concept("cat")),     stv(0.8, 0.7), defaultAV]
+    [implication(concept("hungry"), concept("meow")),stv(0.8, 0.7), defaultAV],
+    emptyPS,
+    defaultMinerConfig,
+    0)
+=>+ MS:MinerState
+such that
+  psSize(msPatterns(MS:MinerState)) > 0 .
+
+*** =================================================================
+*** BENCHMARK 4: Support counting accuracy
+*** =================================================================
+
+red in OC-SUPPORT-COUNT :
+  countSupport(
+    inheritance(variable("$X"), concept("animal")),
+    [inheritance(concept("cat"),  concept("animal")), stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("dog"),  concept("animal")), stv(0.9, 0.8), defaultAV]
+    [inheritance(concept("bird"), concept("animal")), stv(0.8, 0.7), defaultAV]
+    [inheritance(concept("fish"), concept("aquatic")), stv(0.7, 0.6), defaultAV]
+  ) .
+*** expect: 3
+
+*** =================================================================
+*** BENCHMARK 5: I-Surprisingness values
+*** =================================================================
+
+red in OC-SURPRISINGNESS : iSurprise(5, 1, 10) .
+*** expect: 0.5
+
+red in OC-SURPRISINGNESS : iSurprise(10, 2, 10) .
+*** expect: 1.0
+
+red in OC-SURPRISINGNESS : iSurprise(1, 1, 100) .
+*** expect: 0.01
+
+q

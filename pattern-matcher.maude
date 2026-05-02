@@ -14,6 +14,7 @@
 *** ================================================================ )
 
 load execution-engine.maude
+load meta-opencog.maude
 
 *** =================================================================
 *** UNIFICATION
@@ -209,6 +210,19 @@ mod OC-GRAPH-MATCH is
       AS
     if unifyOk(Sub) := unify(Pat, A) .
 
+  *** (Phase 2.2) Multi-clause BindLink matching via AndLink pattern.
+  *** BindLink(Vars, AndLink(Clause1, Clause2, …), Rewrite) — each clause
+  *** is matched in sequence, threading the substitution through.
+  crl [bind-match-and-clause] :
+      [bindLink(VL, andLink((Pat, PatClauses)), Rewrite), TV, AV]
+      [A, TV1, AV1]
+      AS
+    =>
+      [bindLink(VL, andLink(applySubList(PatClauses, Sub)), applySub(Rewrite, Sub)), TV, AV]
+      [A, TV1, AV1]
+      AS
+    if unifyOk(Sub) := unify(Pat, A) .
+
   *** =============================================================
   *** MEETLINK EXECUTION
   *** MeetLink(Vars, Pattern) → SetLink of all matching atoms
@@ -255,3 +269,103 @@ mod OC-GRAPH-MATCH is
     if unifyOk(Sub) := unify(Pat, A) .
 
 endm
+
+*** =================================================================
+*** TYPE-CONSTRAINED UNIFICATION (Phase 2.1)
+*** =================================================================
+*** Extends unification to respect TypedVariableLink constraints.
+*** TypedVariableLink(V, TypeNode(T)) means V may only unify with an
+*** atom whose atomTypeName matches T.
+
+fmod OC-TYPED-UNIFICATION is
+  protecting OC-UNIFICATION .
+  protecting OC-TYPE-INTROSPECT .
+
+  *** Unify with a type constraint: V binds to A only if A has the
+  *** right type name.
+  op unifyTyped : OcAtom OcAtom OcAtom -> UnifyResult .
+
+  vars V : VariableNode .
+  vars A TypeAtom : OcAtom .
+  var TypeName : String .
+  var Sub : Substitution .
+
+  *** TypedVariableLink(Var, TypeNode(Name)): variable with type constraint
+  eq unifyTyped(typedVariable(V, typeNode(TypeName)), A, A) =
+     if atomTypeName(A) == TypeName then unifyOk(bind(V, A)) else unifyFail fi .
+  eq unifyTyped(typedVariable(V, typeNode(TypeName)), A, TypeAtom) =
+     if atomTypeName(A) == TypeName then unifyOk(bind(V, A)) else unifyFail fi
+     [owise] .
+
+  *** Convenience: check whether an atom satisfies a TypeChoice constraint
+  op satisfiesTypeChoice : OcAtom OcAtomList -> Bool .
+  var TypeList : OcAtomList .
+  var TN : String .
+
+  eq satisfiesTypeChoice(A, nil) = false .
+  eq satisfiesTypeChoice(A, (typeNode(TN), TypeList)) =
+     atomTypeName(A) == TN or satisfiesTypeChoice(A, TypeList) .
+  eq satisfiesTypeChoice(A, TypeList) = false [owise] .
+
+endfm
+
+*** =================================================================
+*** GLOB NODE MATCHING (Phase 2.1)
+*** =================================================================
+*** GlobNode matches zero or more atoms in a list position.
+
+fmod OC-GLOB-MATCH is
+  protecting OC-UNIFICATION .
+
+  sort GlobSub .
+  op globBind : GlobNode OcAtomList -> GlobSub [ctor] .
+  op applyGlobSub : OcAtomList GlobSub -> OcAtomList .
+
+  vars G : GlobNode .
+  vars AL BL Matched : OcAtomList .
+  var A : OcAtom .
+  var GS : GlobSub .
+
+  eq applyGlobSub(nil, GS) = nil .
+  eq applyGlobSub((G, AL), globBind(G, Matched)) = Matched, applyGlobSub(AL, globBind(G, Matched)) .
+  eq applyGlobSub((A, AL), GS) = A, applyGlobSub(AL, GS) [owise] .
+
+  *** unifyListGlob: try to unify a pattern list (possibly containing a GlobNode)
+  *** against a concrete list, producing a GlobSub.
+  op unifyListGlob : OcAtomList OcAtomList -> GlobSub .
+  op unifyListGlobTail : OcAtomList OcAtomList OcAtomList -> GlobSub .
+
+  var S : String .
+  vars PatHead ConHead : OcAtom .
+  vars PatTail ConTail Prefix : OcAtomList .
+
+  *** GlobNode at head: consume zero or more elements greedily
+  eq unifyListGlob((glob(S), PatTail), BL) =
+     unifyListGlobTail(PatTail, BL, nil) .
+  *** Otherwise require element-by-element match
+  eq unifyListGlob(nil, nil) = globBind(glob(""), nil) .
+  eq unifyListGlob((PatHead, PatTail), (ConHead, ConTail)) =
+     if PatHead == ConHead
+     then unifyListGlob(PatTail, ConTail)
+     else globBind(glob(""), nil) fi .
+  eq unifyListGlob(PatTail, BL) = globBind(glob(""), nil) [owise] .
+
+  *** Try progressively longer prefixes for the glob
+  eq unifyListGlobTail(PatTail, BL, Prefix) =
+     if unifyListGlob(PatTail, BL) =/= globBind(glob(""), nil)
+     then globBind(glob("$match"), Prefix)
+     else (if BL == nil
+           then globBind(glob(""), nil)
+           else unifyListGlobTail(PatTail, tail(BL), Prefix, head(BL))
+           fi) fi .
+
+  op head : OcAtomList -> OcAtom .
+  op tail : OcAtomList -> OcAtomList .
+  eq head((A, AL)) = A .
+  eq tail((A, AL)) = AL .
+  *** Append an element to the prefix list
+  op unifyListGlobTail : OcAtomList OcAtomList OcAtomList OcAtom -> GlobSub .
+  eq unifyListGlobTail(PatTail, BL, Prefix, A) =
+     unifyListGlobTail(PatTail, BL, (Prefix, A)) .
+
+endfm

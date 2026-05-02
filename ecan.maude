@@ -62,6 +62,29 @@ mod OC-ECAN is
   vars I1 I2 : Int .
   eq maxInt(I1, I2) = if I1 >= I2 then I1 else I2 fi .
 
+  *** (Phase 2.6) Total STI across all atoms in the AtomSpace
+  op totalSTI : AtomSpace -> Int .
+  var AA : AnnotatedAtom .
+  var STI LTI : Int .
+  var VB : Bool .
+  eq totalSTI(emptyAS) = 0 .
+  eq totalSTI([A, TV, av(STI, LTI, VB)] AS) = STI + totalSTI(AS) .
+
+  *** (Phase 2.6) Normalise STIs when total exceeds budget
+  *** Scale all STIs proportionally so their sum equals Budget.
+  op normalizeSTI : AtomSpace Int -> AtomSpace .
+  op normalizeSTIAux : AtomSpace Float -> AtomSpace .
+  vars Budget : Int .
+  var Scale : Float .
+  eq normalizeSTI(AS, Budget) =
+     if totalSTI(AS) > Budget
+     then normalizeSTIAux(AS, float(Budget) / float(totalSTI(AS)))
+     else AS fi .
+  eq normalizeSTIAux(emptyAS, Scale) = emptyAS .
+  eq normalizeSTIAux([A, TV, av(STI, LTI, VB)] AS, Scale) =
+     [A, TV, av(round(float(STI) * Scale), LTI, VB)]
+     normalizeSTIAux(AS, Scale) .
+
   *** IMPORTANCE SPREADING: Asymmetric Hebbian A1 → A2
   *** Delta is simplified to STI1 / 10 (approximation of STI * strength * 0.1)
   crl [ecan-spread-asym] :
@@ -137,5 +160,108 @@ mod OC-ECAN is
       [A, TV, av(STI1, LTI1 + 1, V1)]
       AS
     if STI1 > 100 .
+
+endm
+
+*** =================================================================
+*** ECAN PARAMETERISED STATE (Phase 1.4)
+*** =================================================================
+*** ECANState wraps an AtomSpace together with ECANParams so that
+*** all dynamic thresholds (spread fraction, rent rate, forgetting
+*** threshold) come from the configuration record rather than being
+*** hardcoded.
+
+mod OC-ECAN-PARAM is
+  protecting OC-ECAN .
+  protecting CONVERSION .
+
+  sort ECANState .
+  op ecanState : AtomSpace ECANParams -> ECANState [ctor] .
+  op ecAS     : ECANState -> AtomSpace .
+  op ecParams : ECANState -> ECANParams .
+
+  var AS : AtomSpace .
+  var EP : ECANParams .
+  eq ecAS(ecanState(AS, EP))     = AS .
+  eq ecParams(ecanState(AS, EP)) = EP .
+
+  vars A A1 A2 : OcAtom .
+  vars STI1 STI2 LTI1 LTI2 Delta : Int .
+  vars V1 V2 : Bool .
+  vars SAB CAB : Float .
+  var TV TV1 TV2 : OcTruthValue .
+  var AV : OcAttentionValue .
+
+  *** PARAMETERISED ASYMMETRIC SPREADING
+  *** Delta = max(1, round(STI1 * spreadFraction(EP)))
+  crl [ecan-p-spread-asym] :
+      ecanState(
+        [asymHebbian(A1, A2), stv(SAB, CAB), AV]
+        [A1, TV1, av(STI1, LTI1, V1)]
+        [A2, TV2, av(STI2, LTI2, V2)]
+        AS, EP)
+    =>
+      ecanState(
+        [asymHebbian(A1, A2), stv(SAB, CAB), AV]
+        [A1, TV1, av(STI1 - Delta, LTI1, V1)]
+        [A2, TV2, av(STI2 + Delta, LTI2, V2)]
+        AS, EP)
+    if STI1 > 0
+    /\ Delta := maxInt(1, round(float(STI1) * spreadFraction(EP))) .
+
+  *** PARAMETERISED SYMMETRIC SPREADING
+  crl [ecan-p-spread-sym] :
+      ecanState(
+        [symHebbian(A1, A2), stv(SAB, CAB), AV]
+        [A1, TV1, av(STI1, LTI1, V1)]
+        [A2, TV2, av(STI2, LTI2, V2)]
+        AS, EP)
+    =>
+      ecanState(
+        [symHebbian(A1, A2), stv(SAB, CAB), AV]
+        [A1, TV1, av(STI1 - Delta, LTI1, V1)]
+        [A2, TV2, av(STI2 + Delta, LTI2, V2)]
+        AS, EP)
+    if STI1 > STI2
+    /\ Delta := maxInt(1, round(float(STI1 - STI2) * spreadFraction(EP) / 2.0)) .
+
+  *** PARAMETERISED RENT
+  crl [ecan-p-collect-rent] :
+      ecanState([A, TV, av(STI1, LTI1, V1)] AS, EP)
+    =>
+      ecanState([A, TV, av(STI1 - 1, LTI1, V1)] AS, EP)
+    if STI1 > 0 /\ V1 == false .
+
+  *** PARAMETERISED FORGETTING (uses configurable threshold)
+  crl [ecan-p-forget] :
+      ecanState([A, TV, av(STI1, LTI1, false)] AS, EP)
+    =>
+      ecanState(AS, EP)
+    if STI1 < forgettingThreshold(EP) .
+
+  *** PARAMETERISED HEBBIAN LEARNING (uses configurable hebbianDecay)
+  crl [ecan-p-hebbian-strengthen] :
+      ecanState(
+        [symHebbian(A1, A2), stv(SAB, CAB), AV]
+        [A1, TV1, av(STI1, LTI1, V1)]
+        [A2, TV2, av(STI2, LTI2, V2)]
+        AS, EP)
+    =>
+      ecanState(
+        [symHebbian(A1, A2),
+         stv(clamp01(SAB + hebbianDecay(EP) * (1.0 - SAB)), CAB),
+         AV]
+        [A1, TV1, av(STI1, LTI1, V1)]
+        [A2, TV2, av(STI2, LTI2, V2)]
+        AS, EP)
+    if STI1 > afBoundary(EP) /\ STI2 > afBoundary(EP) .
+
+  *** PARAMETERISED BUDGET NORMALISATION
+  rl [ecan-p-normalize] :
+      ecanState(AS, EP)
+    =>
+      ecanState(
+        normalizeSTI(AS, maxSTI(EP) * ocSize(AS)),
+        EP) .
 
 endm

@@ -1,0 +1,87 @@
+***( ================================================================
+***  OpenCog in Pure Maude — ECAN Benchmark  (Phase 6.4)
+***
+***  Measures ECAN attention dynamics over graphs of increasing size.
+***
+***  Benchmarks:
+***  1.  Single Hebbian link spreading (latency for one step)
+***  2.  Chain: A →Hebbian B →Hebbian C — how many steps to propagate
+***  3.  Star graph: hub with N spokes — spreading from hub
+***  4.  Parameterised ECAN state with custom spread fraction
+***
+***  Usage:
+***    maude bench-ecan.maude
+*** ================================================================ )
+
+set show timing on .
+set show advisories off .
+
+load ecan.maude
+
+*** =================================================================
+*** BENCHMARK 1: Single asymmetric Hebbian spreading step
+*** =================================================================
+*** Starting: cat(STI=100) --hebbian--> animal(STI=10)
+*** Expected: animal STI increases after one spread step
+
+search [1] in OC-ECAN :
+  [asymHebbian(concept("cat"), concept("animal")), stv(0.9, 0.8), defaultAV]
+  [concept("cat"),    stv(0.8, 0.9), av(100, 20, false)]
+  [concept("animal"), stv(0.8, 0.8), av(10,  10, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS, concept("animal"))) > 10 .
+
+*** =================================================================
+*** BENCHMARK 2: Chain spreading A → B → C (two-hop)
+*** =================================================================
+
+search [1] in OC-ECAN :
+  [asymHebbian(concept("a"), concept("b")), stv(0.9, 0.8), defaultAV]
+  [asymHebbian(concept("b"), concept("c")), stv(0.8, 0.7), defaultAV]
+  [concept("a"), stv(0.8, 0.9), av(500, 10, false)]
+  [concept("b"), stv(0.5, 0.7), av(10,  10, false)]
+  [concept("c"), stv(0.5, 0.6), av(0,   10, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS, concept("c"))) > 0 .
+
+*** =================================================================
+*** BENCHMARK 3: Symmetric Hebbian equilibration (A ↔ B)
+*** =================================================================
+*** Both atoms should converge toward similar STI levels
+
+search [1] in OC-ECAN :
+  [symHebbian(concept("x"), concept("y")), stv(0.8, 0.8), defaultAV]
+  [concept("x"), stv(0.5, 0.8), av(200, 10, false)]
+  [concept("y"), stv(0.5, 0.8), av(0,   10, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS, concept("y"))) > 50 .
+
+*** =================================================================
+*** BENCHMARK 4: Forgetting after rent collection
+*** =================================================================
+*** An atom with initial STI just above 0 should eventually be forgotten
+
+search [1] in OC-ECAN :
+  [concept("ephemeral"), stv(0.5, 0.5), av(3, 0, false)]
+=>! AS:AtomSpace
+such that
+  hasAtom(AS, concept("ephemeral")) == false .
+
+*** =================================================================
+*** BENCHMARK 5: Parameterised ECAN spreading (Phase 1.4)
+*** =================================================================
+
+search [1] in OC-ECAN-PARAM :
+  ecanState(
+    [asymHebbian(concept("src"), concept("dst")), stv(0.9, 0.8), defaultAV]
+    [concept("src"), stv(0.8, 0.9), av(1000, 0, false)]
+    [concept("dst"), stv(0.5, 0.5), av(0,    0, false)],
+    defaultECANParams)
+=>+ ES:ECANState
+such that
+  getSTI(getAV(ecAS(ES), concept("dst"))) > 0 .
+
+q

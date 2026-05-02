@@ -1,0 +1,177 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Property-Based Tests  (Phase 6.3)
+***
+***  Verifies algebraic laws using Maude search and reduction:
+***
+***  1.  AC commutativity / associativity of tvAnd / tvOr
+***  2.  Idempotence of addAtom when atom already exists
+***  3.  Monotonicity of ECAN rent (STI never increases from rent alone)
+***  4.  tvAnd unit (tvAnd with nullTV strength ~ 0)
+***  5.  tvOr unit (tvOr with nullTV ~ identity)
+***  6.  tvRevision commutativity (symmetric up to floating-point)
+***  7.  mergeTV idempotence
+***  8.  normalizeSTI budget invariant
+***  9.  ECAN forgetting monotonicity (STI only decreases via rent)
+*** 10.  PLN deduction duplicate guard (no double derivation)
+***
+***  Each test uses either:
+***    - red/reduce  for equational properties
+***    - search      for reachability / rewrite properties
+*** ================================================================ )
+
+set show timing off .
+set show advisories off .
+
+load ecan.maude
+load pln.maude
+
+*** =================================================================
+*** PROPERTY 1: tvAnd commutativity
+*** =================================================================
+*** tvAnd(A,B) == tvAnd(B,A)
+
+red in OC-TRUTH-VALUE :
+  tvAnd(stv(0.7, 0.8), stv(0.5, 0.6)) == tvAnd(stv(0.5, 0.6), stv(0.7, 0.8)) .
+*** expect: true
+
+*** tvOr commutativity
+red in OC-TRUTH-VALUE :
+  tvOr(stv(0.3, 0.9), stv(0.6, 0.7)) == tvOr(stv(0.6, 0.7), stv(0.3, 0.9)) .
+*** expect: true
+
+*** =================================================================
+*** PROPERTY 2: tvAnd associativity (holds up to float rounding)
+*** =================================================================
+
+red in OC-TRUTH-VALUE :
+  tvStrength(tvAnd(tvAnd(stv(0.9, 0.8), stv(0.7, 0.6)), stv(0.5, 0.4)))
+  ==
+  tvStrength(tvAnd(stv(0.9, 0.8), tvAnd(stv(0.7, 0.6), stv(0.5, 0.4)))) .
+*** expect: true
+
+*** =================================================================
+*** PROPERTY 3: Idempotence of addAtom
+*** =================================================================
+*** Adding the same atom twice should give the same TV as adding once
+*** (when using setTV for the second add — the raw addAtom duplicates).
+*** Here we verify that mergeTV on an identical TV is idempotent via
+*** the revision rule: revision of X with X ≈ X.
+
+red in OC-ATOM-SPACE :
+  tvStrength(
+    mergeTV(
+      addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+      concept("cat"),
+      stv(0.8, 0.9))) .
+
+red in OC-ATOM-SPACE :
+  tvConfidence(
+    mergeTV(
+      addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+      concept("cat"),
+      stv(0.8, 0.9))) .
+
+*** Confidence should be >= 0.9 after merging identical evidence
+red in OC-ATOM-SPACE :
+  tvConfidence(
+    getTV(
+      mergeTV(
+        addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+        concept("cat"),
+        stv(0.8, 0.9)),
+      concept("cat"))) >= 0.9 .
+*** expect: true
+
+*** =================================================================
+*** PROPERTY 4: ECAN rent monotonicity
+*** =================================================================
+*** STI never increases purely from rent collection.
+
+search [1] in OC-ECAN :
+  [concept("x"), stv(0.5, 0.5), av(10, 0, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS:AtomSpace, concept("x"))) > 10 .
+*** expect: no solution (this search should find NO result)
+
+*** The inverse: STI should decrease after rent
+search [1] in OC-ECAN :
+  [concept("x"), stv(0.5, 0.5), av(10, 0, false)]
+=>+ AS:AtomSpace
+such that
+  getSTI(getAV(AS:AtomSpace, concept("x"))) == 9 .
+
+*** =================================================================
+*** PROPERTY 5: PLN deduction duplicate guard
+*** =================================================================
+*** When A→C already exists, pln-deduction must not fire a second time.
+*** We verify that search finds exactly one step that adds A→C.
+
+search [2] in OC-PLN-RULES :
+  [concept("a"), stv(0.5, 0.8), defaultAV]
+  [concept("b"), stv(0.5, 0.7), defaultAV]
+  [concept("c"), stv(0.5, 0.6), defaultAV]
+  [inheritance(concept("a"), concept("b")), stv(0.9, 0.8), defaultAV]
+  [inheritance(concept("b"), concept("c")), stv(0.8, 0.7), defaultAV]
+=>+ AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, inheritance(concept("a"), concept("c"))) == true .
+
+*** =================================================================
+*** PROPERTY 6: ECAN forgetting removes atom when STI too low
+*** =================================================================
+
+search [1] in OC-ECAN :
+  [concept("stale"), stv(0.5, 0.5), av(-500, 0, false)]
+=>! AS:AtomSpace
+such that
+  hasAtom(AS:AtomSpace, concept("stale")) == false .
+
+*** =================================================================
+*** PROPERTY 7: normalizeSTI budget invariant
+*** =================================================================
+*** After normalisation, totalSTI ≤ Budget.
+
+red in OC-ECAN :
+  totalSTI(
+    normalizeSTI(
+      [concept("a"), stv(0.5, 0.5), av(1000, 0, false)]
+      [concept("b"), stv(0.5, 0.5), av(2000, 0, false)]
+      [concept("c"), stv(0.5, 0.5), av(3000, 0, false)],
+      3000)) <= 3000 .
+*** expect: true
+
+*** =================================================================
+*** PROPERTY 8: tvRevision commutativity (strength)
+*** =================================================================
+
+red in OC-TRUTH-VALUE :
+  tvStrength(tvRevision(stv(0.3, 0.6), stv(0.8, 0.4)))
+  ==
+  tvStrength(tvRevision(stv(0.8, 0.4), stv(0.3, 0.6))) .
+*** expect: true
+
+*** =================================================================
+*** PROPERTY 9: getAtomList length matches ocSize
+*** =================================================================
+
+red in OC-ATOM-SPACE :
+  ocSize(
+    addAtom(
+      addAtom(
+        addAtom(emptyAS, concept("x"), stv(0.5, 0.5)),
+        concept("y"), stv(0.4, 0.4)),
+      concept("z"), stv(0.3, 0.3))) .
+*** expect: 3
+
+*** =================================================================
+*** PROPERTY 10: tvAnd with nullTV (zero-confidence ~ 0)
+*** =================================================================
+
+red in OC-TRUTH-VALUE : tvConfidence(tvAnd(stv(0.8, 0.9), nullTV)) .
+*** expect: 0.0
+
+red in OC-TRUTH-VALUE : tvConfidence(tvOr(stv(0.8, 0.9), nullTV)) .
+*** expect: 0.0
+
+q

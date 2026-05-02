@@ -175,6 +175,7 @@ fmod OC-ATOM-SPACE is
   
   op addAtom : AtomSpace OcAtom OcTruthValue -> AtomSpace .
   op addAtom : AtomSpace OcAtom -> AtomSpace .
+  op mergeTV : AtomSpace OcAtom OcTruthValue -> AtomSpace .
   op removeAtom : AtomSpace OcAtom -> AtomSpace .
   op hasAtom : AtomSpace OcAtom -> Bool .
   op getTV : AtomSpace OcAtom -> OcTruthValue .
@@ -182,6 +183,7 @@ fmod OC-ATOM-SPACE is
   op setTV : AtomSpace OcAtom OcTruthValue -> AtomSpace .
   op setAV : AtomSpace OcAtom OcAttentionValue -> AtomSpace .
   op ocSize : AtomSpace -> Nat .
+  op getAtomList : AtomSpace -> OcAtomList .
   op getName : OcNode -> String .
 
   *** =============================================================
@@ -204,6 +206,10 @@ fmod OC-ATOM-SPACE is
   
   eq addAtom(AS, A, TV) = AS [A, TV, defaultAV] .
   eq addAtom(AS, A) = AS [A, defaultTV, defaultAV] .
+
+  *** (Phase 1.2) mergeTV: if atom already present apply revision, else add fresh
+  eq mergeTV([A, TV, AV] AS, A, TV1) = [A, tvRevision(TV, TV1), AV] AS .
+  eq mergeTV(AS, A, TV1) = AS [A, TV1, defaultAV] [owise] .
   
   eq removeAtom([A, TV, AV] AS, A) = AS .
   eq removeAtom(AS, A) = AS [owise] .
@@ -225,6 +231,10 @@ fmod OC-ATOM-SPACE is
   
   eq ocSize(emptyAS) = 0 .
   eq ocSize(AA AS) = 1 + ocSize(AS) .
+
+  *** (Phase 1.2) getAtomList: enumerate all atoms in the AtomSpace
+  eq getAtomList(emptyAS) = nil .
+  eq getAtomList([A, TV, AV] AS) = A, getAtomList(AS) .
   
   eq getName(concept(S)) = S .
   eq getName(number(S)) = S .
