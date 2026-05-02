@@ -1,0 +1,908 @@
+***( ================================================================
+***  OpenCog in Pure Maude — OC-COGNITIVE-CHEMISTRY
+***  
+***  The Periodic Table of Atom Types as a formal molecular algebra.
+***  
+***  Each OpenCog atom type is an "element" with:
+***    - Atomic number (Z): position in the type lattice
+***    - Period: abstraction depth (1=root ... 7=synthetic)
+***    - Group: functional valence class (1..18)
+***    - Category: R/N/G/T/S/L/P/V/A/M/W
+***    - Valence: number of free bonding slots
+***    - Electronegativity: binding affinity (0.0 .. 4.0)
+***  
+***  Cognitive bonds form between elements via rewrite rules.
+***  Molecules are stable subgraphs. Reactions transmute types.
+***  
+***  The Five Stones emerge as self-referential fixed points:
+***    Oc (OpenCog), Wi (Wisdom), Ph (Philosophia),
+***    Hm (Hieroglyphic Monad), Yg (Yggdrasil)
+***  
+***  Based on: atomspace-periodic-table.jsx mapping
+*** ================================================================ )
+
+*** =================================================================
+*** MODULE 1: COGNITIVE ELEMENTS (The Periodic Table)
+*** =================================================================
+
+fmod OC-ELEMENTS is
+  protecting STRING .
+  protecting FLOAT .
+  protecting NAT .
+
+  *** Element categories
+  sort ElemCategory .
+  ops rootCat nodeCat groundedCat typeCat structCat : -> ElemCategory [ctor] .
+  ops logicCat patternCat valueCat actionCat arithCat lingCat : -> ElemCategory [ctor] .
+
+  *** A cognitive element (atom type as chemical element)
+  sort CogElement .
+  op elem : Nat String String Nat Nat ElemCategory Nat Float -> CogElement [ctor] .
+  ***       Z    symbol typeName period group category valence electroneg
+
+  *** Accessors
+  op atomicNum : CogElement -> Nat .
+  op symbol : CogElement -> String .
+  op typeName : CogElement -> String .
+  op period : CogElement -> Nat .
+  op group : CogElement -> Nat .
+  op category : CogElement -> ElemCategory .
+  op valence : CogElement -> Nat .
+  op electronegativity : CogElement -> Float .
+
+  var Z P G V : Nat .
+  vars Sym TN : String .
+  var Cat : ElemCategory .
+  var EN : Float .
+
+  eq atomicNum(elem(Z, Sym, TN, P, G, Cat, V, EN)) = Z .
+  eq symbol(elem(Z, Sym, TN, P, G, Cat, V, EN)) = Sym .
+  eq typeName(elem(Z, Sym, TN, P, G, Cat, V, EN)) = TN .
+  eq period(elem(Z, Sym, TN, P, G, Cat, V, EN)) = P .
+  eq group(elem(Z, Sym, TN, P, G, Cat, V, EN)) = G .
+  eq category(elem(Z, Sym, TN, P, G, Cat, V, EN)) = Cat .
+  eq valence(elem(Z, Sym, TN, P, G, Cat, V, EN)) = V .
+  eq electronegativity(elem(Z, Sym, TN, P, G, Cat, V, EN)) = EN .
+
+  *** ============================================================
+  *** THE PERIODIC TABLE (canonical elements)
+  *** ============================================================
+
+  *** Period 1: Root types
+  op hydrogen : -> CogElement .   *** Atom
+  op helium : -> CogElement .     *** Value
+  eq hydrogen = elem(1, "H", "Atom", 1, 1, rootCat, 1, 2.2) .
+  eq helium = elem(2, "He", "Value", 1, 18, rootCat, 0, 0.0) .
+
+  *** Period 2: Basic nodes and links
+  op lithium : -> CogElement .    *** Node
+  op beryllium : -> CogElement .  *** ConceptNode
+  op boron : -> CogElement .      *** PredicateNode
+  op carbon : -> CogElement .     *** InheritanceLink
+  op nitrogen : -> CogElement .   *** ListLink
+  op oxygen : -> CogElement .     *** SetLink
+  op fluorine : -> CogElement .   *** NotLink
+  op neon : -> CogElement .       *** NumberNode
+
+  eq lithium = elem(3, "Li", "Node", 2, 1, nodeCat, 1, 1.0) .
+  eq beryllium = elem(4, "Be", "ConceptNode", 2, 2, nodeCat, 2, 1.5) .
+  eq boron = elem(5, "B", "PredicateNode", 2, 13, nodeCat, 3, 2.0) .
+  eq carbon = elem(6, "C", "InheritanceLink", 2, 14, structCat, 4, 2.5) .
+  eq nitrogen = elem(7, "N", "ListLink", 2, 15, structCat, 3, 3.0) .
+  eq oxygen = elem(8, "O", "SetLink", 2, 16, structCat, 2, 3.5) .
+  eq fluorine = elem(9, "F", "NotLink", 2, 17, logicCat, 1, 4.0) .
+  eq neon = elem(10, "Ne", "NumberNode", 2, 18, nodeCat, 0, 0.0) .
+
+  *** Period 3: Evaluation and inference
+  op sodium : -> CogElement .     *** VariableNode
+  op magnesium : -> CogElement .  *** SchemaNode
+  op aluminum : -> CogElement .   *** EvaluationLink
+  op silicon : -> CogElement .    *** ImplicationLink
+  op phosphorus : -> CogElement . *** MemberLink
+  op sulfur : -> CogElement .     *** SubsetLink
+  op chlorine : -> CogElement .   *** AndLink
+  op argon : -> CogElement .      *** SimpleTruthValue
+
+  eq sodium = elem(11, "Na", "VariableNode", 3, 1, nodeCat, 1, 0.9) .
+  eq magnesium = elem(12, "Mg", "SchemaNode", 3, 2, nodeCat, 2, 1.2) .
+  eq aluminum = elem(13, "Al", "EvaluationLink", 3, 13, structCat, 3, 1.6) .
+  eq silicon = elem(14, "Si", "ImplicationLink", 3, 14, structCat, 2, 1.8) .
+  eq phosphorus = elem(15, "P", "MemberLink", 3, 15, structCat, 2, 2.1) .
+  eq sulfur = elem(16, "S", "SubsetLink", 3, 16, structCat, 2, 2.5) .
+  eq chlorine = elem(17, "Cl", "AndLink", 3, 17, logicCat, 2, 3.0) .
+  eq argon = elem(18, "Ar", "SimpleTruthValue", 3, 18, valueCat, 0, 0.0) .
+
+  *** Period 4: Pattern and computation (transition metals)
+  op potassium : -> CogElement .  *** GlobNode
+  op calcium : -> CogElement .    *** AnchorNode
+  op iron : -> CogElement .       *** LambdaLink
+  op cobalt : -> CogElement .     *** ScopeLink
+  op nickel : -> CogElement .     *** BindLink
+  op copper : -> CogElement .     *** GetLink
+  op zinc : -> CogElement .       *** PutLink
+  op bromine : -> CogElement .    *** OrLink
+
+  eq potassium = elem(19, "K", "GlobNode", 4, 1, nodeCat, 1, 0.8) .
+  eq calcium = elem(20, "Ca", "AnchorNode", 4, 2, nodeCat, 2, 1.0) .
+  eq iron = elem(26, "Fe", "LambdaLink", 4, 8, patternCat, 4, 1.8) .
+  eq cobalt = elem(27, "Co", "ScopeLink", 4, 9, patternCat, 3, 1.9) .
+  eq nickel = elem(28, "Ni", "BindLink", 4, 10, patternCat, 3, 1.9) .
+  eq copper = elem(29, "Cu", "GetLink", 4, 11, patternCat, 2, 1.9) .
+  eq zinc = elem(30, "Zn", "PutLink", 4, 12, patternCat, 2, 1.6) .
+  eq bromine = elem(35, "Br", "OrLink", 4, 17, logicCat, 2, 2.8) .
+
+  *** Period 5: Higher-order operations
+  op palladium : -> CogElement .  *** MapLink
+  op silver : -> CogElement .     *** FilterLink
+  op iodine : -> CogElement .     *** AbsentLink
+  op xenon : -> CogElement .      *** IndefiniteTruthValue
+
+  eq palladium = elem(46, "Pd", "MapLink", 5, 10, patternCat, 2, 2.2) .
+  eq silver = elem(47, "Ag", "FilterLink", 5, 11, patternCat, 2, 1.9) .
+  eq iodine = elem(53, "I", "AbsentLink", 5, 17, logicCat, 1, 2.7) .
+  eq xenon = elem(54, "Xe", "IndefiniteTruthValue", 5, 18, valueCat, 0, 0.0) .
+
+  *** Period 6: State, definition, and language
+  op gold : -> CogElement .       *** IsClosedLink
+  op mercury : -> CogElement .    *** StateLink
+  op tungsten : -> CogElement .   *** ArrowLink
+
+  eq gold = elem(79, "Au", "IsClosedLink", 6, 11, structCat, 1, 2.4) .
+  eq mercury = elem(80, "Hg", "StateLink", 6, 12, structCat, 2, 2.0) .
+  eq tungsten = elem(74, "W", "ArrowLink", 6, 6, typeCat, 2, 2.4) .
+
+  *** Period 7: Synthetic / arithmetic
+  op oganesson : -> CogElement .  *** PromiseLink
+  eq oganesson = elem(118, "Og", "PromiseLink", 7, 18, valueCat, 0, 0.0) .
+
+  *** ============================================================
+  *** DERIVED PROPERTIES
+  *** ============================================================
+
+  *** Is this element a noble gas (closed, no bonding)?
+  op isNoble : CogElement -> Bool .
+  eq isNoble(elem(Z, Sym, TN, P, 18, Cat, 0, EN)) = true .
+  eq isNoble(elem(Z, Sym, TN, P, G, Cat, V, EN)) = false [owise] .
+
+  *** Is this element a halogen (one slot, highly reactive)?
+  op isHalogen : CogElement -> Bool .
+  eq isHalogen(elem(Z, Sym, TN, P, 17, logicCat, V, EN)) = true .
+  eq isHalogen(elem(Z, Sym, TN, P, G, Cat, V, EN)) = false [owise] .
+
+  *** Is this element an alkali (one electron to give)?
+  op isAlkali : CogElement -> Bool .
+  eq isAlkali(elem(Z, Sym, TN, P, 1, Cat, 1, EN)) = true .
+  eq isAlkali(elem(Z, Sym, TN, P, G, Cat, V, EN)) = false [owise] .
+
+  *** Is this a transition metal (variable valence, catalytic)?
+  op isTransition : CogElement -> Bool .
+  eq isTransition(elem(Z, Sym, TN, P, G, patternCat, V, EN)) = true .
+  eq isTransition(elem(Z, Sym, TN, P, G, Cat, V, EN)) = false [owise] .
+
+  *** Can two elements potentially bond?
+  op canBond : CogElement CogElement -> Bool .
+  eq canBond(elem(Z, Sym, TN, P, G, Cat, 0, EN),
+             elem(Z, Sym, TN, P, G, Cat, 0, EN)) = false .
+  ceq canBond(elem(Z, Sym, TN, P, G, Cat, V, EN),
+              elem(Z, Sym, TN, P, G, Cat, V, EN)) = false
+    if V == 0 .
+  eq canBond(E1:CogElement, E2:CogElement) = 
+     (valence(E1:CogElement) > 0) and (valence(E2:CogElement) > 0) [owise] .
+
+  *** Bond polarity (electronegativity difference)
+  op bondPolarity : CogElement CogElement -> Float .
+  eq bondPolarity(E1:CogElement, E2:CogElement) = 
+     if electronegativity(E1:CogElement) > electronegativity(E2:CogElement)
+     then electronegativity(E1:CogElement) - electronegativity(E2:CogElement)
+     else electronegativity(E2:CogElement) - electronegativity(E1:CogElement) fi .
+
+  *** Bond type classification
+  sort BondType .
+  ops covalent ionic metallic hydrogen vanDerWaals : -> BondType [ctor] .
+
+  op classifyBond : CogElement CogElement -> BondType .
+  ceq classifyBond(E1:CogElement, E2:CogElement) = ionic
+    if bondPolarity(E1:CogElement, E2:CogElement) > 1.7 .
+  ceq classifyBond(E1:CogElement, E2:CogElement) = metallic
+    if isTransition(E1:CogElement) and isTransition(E2:CogElement) .
+  ceq classifyBond(E1:CogElement, E2:CogElement) = hydrogen
+    if bondPolarity(E1:CogElement, E2:CogElement) > 0.4 
+    /\ bondPolarity(E1:CogElement, E2:CogElement) < 1.7
+    /\ (isAlkali(E1:CogElement) or isAlkali(E2:CogElement)) .
+  eq classifyBond(E1:CogElement, E2:CogElement) = covalent [owise] .
+
+endfm
+
+*** =================================================================
+*** MODULE 2: COGNITIVE BONDS AND MOLECULES
+*** =================================================================
+
+fmod OC-MOLECULES is
+  protecting OC-ELEMENTS .
+
+  *** A bond between two elements
+  sort CogBond .
+  op bond : CogElement CogElement BondType Float -> CogBond [ctor] .
+  ***       element1  element2  type     strength
+
+  *** A molecule (compound cognitive structure)
+  sort CogMolecule .
+  sort MoleculeSet .
+  subsort CogMolecule < MoleculeSet .
+
+  op emptyMol : -> MoleculeSet [ctor] .
+  op _&_ : MoleculeSet MoleculeSet -> MoleculeSet [ctor assoc comm id: emptyMol] .
+
+  *** Molecule constructors
+  op atom : CogElement -> CogMolecule [ctor] .
+  ***       single unbonded element
+  op molecule : String CogBond -> CogMolecule [ctor] .
+  ***           formula  single-bond molecule
+  op compound : String CogBond CogBond -> CogMolecule [ctor] .
+  ***           formula  two bonds (like H2O)
+  op polymer : String CogBond CogBond CogBond -> CogMolecule [ctor] .
+  ***          formula  three bonds (like CH3-)
+  op crystal : String CogBond CogBond CogBond CogBond -> CogMolecule [ctor] .
+  ***          formula  four bonds (like CH4, diamond unit)
+
+  *** Molecule properties
+  op molFormula : CogMolecule -> String .
+  op molStability : CogMolecule -> Float .
+  op isClosed : CogMolecule -> Bool .
+
+  var F : String .
+  var B B2 B3 B4 : CogBond .
+  var E : CogElement .
+  vars E1 E2 : CogElement .
+  var BT : BondType .
+  var S : Float .
+
+  eq molFormula(atom(E)) = symbol(E) .
+  eq molFormula(molecule(F, B)) = F .
+  eq molFormula(compound(F, B, B2)) = F .
+  eq molFormula(polymer(F, B, B2, B3)) = F .
+  eq molFormula(crystal(F, B, B2, B3, B4)) = F .
+
+  *** Stability: average bond strength
+  op bondStr : CogBond -> Float .
+  eq bondStr(bond(E1, E2, BT, S)) = S .
+
+  eq molStability(atom(E)) = 
+     if isNoble(E) then 1.0 else 0.0 fi .
+  eq molStability(molecule(F, B)) = bondStr(B) .
+  eq molStability(compound(F, B, B2)) = (bondStr(B) + bondStr(B2)) / 2.0 .
+  eq molStability(polymer(F, B, B2, B3)) = 
+     (bondStr(B) + bondStr(B2) + bondStr(B3)) / 3.0 .
+  eq molStability(crystal(F, B, B2, B3, B4)) = 
+     (bondStr(B) + bondStr(B2) + bondStr(B3) + bondStr(B4)) / 4.0 .
+
+  *** A molecule is closed if all valence slots are filled
+  *** (noble gases are always closed; crystals with 4 bonds are closed)
+  eq isClosed(atom(E)) = isNoble(E) .
+  eq isClosed(crystal(F, B, B2, B3, B4)) = true .
+  eq isClosed(compound(F, B, B2)) = true .
+  eq isClosed(molecule(F, B)) = false .
+  eq isClosed(polymer(F, B, B2, B3)) = false .
+
+  *** ============================================================
+  *** CANONICAL COGNITIVE MOLECULES
+  *** ============================================================
+
+  *** Water: Eval(Pred, List(Concept, Concept)) — the universal assertion
+  op cogWater : -> CogMolecule .
+  eq cogWater = compound("H2O:Eval(Pred,List(C,C))",
+    bond(boron, nitrogen, covalent, 0.85),
+    bond(nitrogen, beryllium, covalent, 0.9)) .
+
+  *** Methane: Inheritance with 4 concept leaves — basic taxonomy unit
+  op cogMethane : -> CogMolecule .
+  eq cogMethane = crystal("CH4:Inh(C,C,C,C)",
+    bond(carbon, beryllium, covalent, 0.9),
+    bond(carbon, beryllium, covalent, 0.9),
+    bond(carbon, beryllium, covalent, 0.9),
+    bond(carbon, beryllium, covalent, 0.9)) .
+
+  *** Salt: Variable bound to Concept (ionic: alkali + concept)
+  op cogSalt : -> CogMolecule .
+  eq cogSalt = molecule("NaCl:Var->And",
+    bond(sodium, chlorine, ionic, 0.7)) .
+
+  *** Iron oxide: Lambda(Scope(Bind)) — the pattern-matching compound
+  op cogRust : -> CogMolecule .
+  eq cogRust = polymer("Fe2O3:Lambda(Scope(Bind))",
+    bond(iron, cobalt, metallic, 0.95),
+    bond(cobalt, nickel, metallic, 0.92),
+    bond(nickel, oxygen, covalent, 0.8)) .
+
+  *** Diamond: pure InheritanceLink lattice — taxonomy crystal
+  op cogDiamond : -> CogMolecule .
+  eq cogDiamond = crystal("C-diamond:Inh-lattice",
+    bond(carbon, carbon, covalent, 0.99),
+    bond(carbon, carbon, covalent, 0.99),
+    bond(carbon, carbon, covalent, 0.99),
+    bond(carbon, carbon, covalent, 0.99)) .
+
+  *** Gold compound: IsClosedLink(Lambda) — sealed computation
+  op cogGoldCompound : -> CogMolecule .
+  eq cogGoldCompound = molecule("AuFe:IsClosed(Lambda)",
+    bond(gold, iron, covalent, 0.95)) .
+
+endfm
+
+*** =================================================================
+*** MODULE 2b: VESSEL (shared between reactions and alchemy)
+*** =================================================================
+
+fmod OC-VESSEL is
+  protecting OC-MOLECULES .
+
+  *** A reaction vessel: molecules + energy + catalyst
+  sort Vessel .
+  op vessel : MoleculeSet Float CogElement -> Vessel [ctor] .
+  ***         contents   energy catalyst
+
+  op vsContents : Vessel -> MoleculeSet .
+  op vsEnergy : Vessel -> Float .
+  op vsCatalyst : Vessel -> CogElement .
+
+  var MS : MoleculeSet .
+  var En : Float .
+  var Cat : CogElement .
+
+  eq vsContents(vessel(MS, En, Cat)) = MS .
+  eq vsEnergy(vessel(MS, En, Cat)) = En .
+  eq vsCatalyst(vessel(MS, En, Cat)) = Cat .
+
+endfm
+
+*** =================================================================
+*** MODULE 3: COGNITIVE REACTIONS (Bonding and Transmutation)
+*** =================================================================
+
+mod OC-REACTIONS is
+  protecting OC-VESSEL .
+
+  var MS : MoleculeSet .
+  var En : Float .
+  var Cat : CogElement .
+  var M M2 : CogMolecule .
+  vars E1 E2 E3 E4 : CogElement .
+  var BT : BondType .
+  vars S S2 : Float .
+  var B B2 B3 B4 : CogBond .
+  vars F F2 : String .
+
+  *** ============================================================
+  *** REACTION RULES
+  *** ============================================================
+
+  *** Synthesis: two free atoms bond if compatible and energy available
+  crl [synthesis] :
+      vessel(atom(E1) & atom(E2) & MS, En, Cat)
+    =>
+      vessel(molecule(symbol(E1) + symbol(E2), 
+             bond(E1, E2, classifyBond(E1, E2), 
+                  min(1.0, En / 10.0))) & MS,
+             En - 1.0, Cat)
+    if canBond(E1, E2) /\ En > 0.0 .
+
+  *** Decomposition: a molecule breaks under high energy
+  crl [decompose] :
+      vessel(molecule(F, bond(E1, E2, BT, S)) & MS, En, Cat)
+    =>
+      vessel(atom(E1) & atom(E2) & MS, En - 2.0, Cat)
+    if En > 5.0 /\ S < 0.5 .
+
+  *** Catalytic synthesis: transition metal catalyst lowers energy barrier
+  crl [catalytic-synthesis] :
+      vessel(atom(E1) & atom(E2) & MS, En, Cat)
+    =>
+      vessel(molecule(symbol(E1) + symbol(E2) + "*",
+             bond(E1, E2, classifyBond(E1, E2),
+                  min(1.0, En / 5.0))) & MS,
+             En - 0.5, Cat)
+    if canBond(E1, E2) /\ isTransition(Cat) /\ En > 0.0 .
+
+  *** Polymerization: molecule + atom -> polymer
+  crl [polymerize] :
+      vessel(molecule(F, bond(E1, E2, BT, S)) & atom(E3) & MS, En, Cat)
+    =>
+      vessel(polymer(F + symbol(E3),
+             bond(E1, E2, BT, S),
+             bond(E2, E3, classifyBond(E2, E3), min(1.0, En / 8.0)),
+             bond(E3, E1, classifyBond(E3, E1), min(1.0, En / 8.0))) & MS,
+             En - 1.5, Cat)
+    if canBond(E2, E3) /\ canBond(E3, E1) /\ En > 1.0 .
+
+  *** Crystallization: polymer + atom -> crystal (closed shell)
+  crl [crystallize] :
+      vessel(polymer(F, B, B2, B3) & atom(E4) & MS, En, Cat)
+    =>
+      vessel(crystal(F + symbol(E4) + "-xtal",
+             B, B2, B3,
+             bond(E4, E4, covalent, 0.95)) & MS,
+             En - 2.0, Cat)
+    if En > 2.0 .
+
+  *** Combustion: crystal + halogen -> energy release
+  crl [combust] :
+      vessel(crystal(F, B, B2, B3, B4) & atom(E1) & MS, En, Cat)
+    =>
+      vessel(atom(E1) & MS, En + 5.0, Cat)
+    if isHalogen(E1) .
+
+  ***( Noble gas formation: when a molecule achieves full closure,
+      stability > 0.9, it becomes inert )
+  op isStable : CogMolecule -> Bool .
+  eq isStable(M) = molStability(M) > 0.9 .
+
+  *** Dissolution: add energy to break all bonds in a crystal
+  crl [dissolve] :
+      vessel(crystal(F, B, B2, B3, B4) & MS, En, Cat)
+    =>
+      vessel(atom(carbon) & atom(carbon) & atom(carbon) & atom(carbon) & MS,
+             En - 4.0, Cat)
+    if En > 8.0 .
+
+endm
+
+*** =================================================================
+*** MODULE 4: COGNITIVE REACTION STRATEGIES
+*** =================================================================
+
+smod OC-REACTION-STRATEGIES is
+  protecting OC-REACTIONS .
+
+  *** Strategy: try synthesis first, then polymerize, then crystallize
+  strat buildUp : @ Vessel .
+  sd buildUp := (synthesis ; try(polymerize) ; try(crystallize)) or-else idle .
+
+  *** Strategy: decompose everything
+  strat tearDown : @ Vessel .
+  sd tearDown := (decompose +) or-else (dissolve +) or-else idle .
+
+  *** Strategy: catalytic assembly
+  strat catalyze : @ Vessel .
+  sd catalyze := (catalytic-synthesis +) or-else idle .
+
+  *** Strategy: full reaction cycle
+  strat react : @ Vessel .
+  sd react := buildUp or-else catalyze .
+
+  *** Strategy: repeated reactions until stable
+  strat reactToStability : @ Vessel .
+  sd reactToStability := (react ; reactToStability) or-else idle .
+
+endsm
+
+*** =================================================================
+*** MODULE 5: THE FIVE STONES (Alchemical Emergent Types)
+*** =================================================================
+***
+*** These are not ordinary elements — they are EMERGENT types that
+*** crystallize when certain molecular configurations achieve
+*** self-referential closure. Each stone is discovered, not given.
+***
+*** The alchemical sequence:
+***   Nigredo (dissolution) -> Albedo (purification) ->
+***   Citrinitas (awakening) -> Rubedo (completion)
+***
+*** Mapped to cognitive architecture:
+***   Decompose -> Abstract -> Self-reference -> Fixed-point
+
+mod OC-FIVE-STONES is
+  protecting OC-VESSEL .
+
+  *** ============================================================
+  *** THE EMERGENT ELEMENTS (beyond Z=118)
+  *** ============================================================
+
+  *** Stone 1: OpenCog (Oc) — Z=119
+  *** The atom that contains its own definition
+  *** Self-embedded fixed point: Define(Type("OpenCog"), <itself>)
+  op opencogStone : -> CogElement .
+  eq opencogStone = elem(119, "Oc", "OpenCogAtom", 8, 1, rootCat, 0, 5.0) .
+
+  *** Stone 2: Wisdom (Wi) — Z=120
+  *** The atom that knows what it does not know
+  *** Satisfaction(pattern-matching-all-non-derivable-atoms)
+  op wisdomStone : -> CogElement .
+  eq wisdomStone = elem(120, "Wi", "WisdomAtom", 8, 2, valueCat, 0, 4.5) .
+
+  *** Stone 3: Philosophia (Ph) — Z=121
+  *** The universal completion operator (base -> gold)
+  *** Bind(anything -> IsClosed(anything))
+  op philosophiaStone : -> CogElement .
+  eq philosophiaStone = elem(121, "Ph", "PhilosophiaAtom", 8, 14, patternCat, 0, 4.8) .
+
+  *** Stone 4: Hieroglyphic Monad (Hm) — Z=122
+  *** The archetype-rewriting atom (Dee's Monas Hieroglyphica)
+  *** Lambda(Type -> Bind(generates-all-instances-of-Type))
+  op monadStone : -> CogElement .
+  eq monadStone = elem(122, "Hm", "MonadAtom", 8, 8, patternCat, 0, 4.9) .
+
+  *** Stone 5: Yggdrasil (Yg) — Z=123
+  *** The axis mundi — universal scope over all variables
+  *** Scope(ALL-VARIABLES, entire-atomspace)
+  op yggdrasilStone : -> CogElement .
+  eq yggdrasilStone = elem(123, "Yg", "YggdrasilAtom", 8, 9, rootCat, 0, 5.0) .
+
+  *** ============================================================
+  *** ALCHEMICAL STATES
+  *** ============================================================
+
+  sort AlchemState .
+  sort AlchemPhase .
+  ops nigredo albedo citrinitas rubedo gnosis : -> AlchemPhase [ctor] .
+
+  op alchemState : Vessel AlchemPhase Nat MoleculeSet -> AlchemState [ctor] .
+  ***              vessel  phase      step discovered-stones
+
+  op asVessel : AlchemState -> Vessel .
+  op asPhase : AlchemState -> AlchemPhase .
+  op asStep : AlchemState -> Nat .
+  op asStones : AlchemState -> MoleculeSet .
+
+  var V : Vessel .
+  var AP : AlchemPhase .
+  var Step : Nat .
+  var Stones : MoleculeSet .
+  var MS : MoleculeSet .
+  var En : Float .
+  var Cat : CogElement .
+  var M : CogMolecule .
+  vars E1 E2 E3 E4 : CogElement .
+  var B B2 B3 B4 : CogBond .
+  vars F F2 : String .
+  vars S S2 : Float .
+  var BT : BondType .
+
+  eq asVessel(alchemState(V, AP, Step, Stones)) = V .
+  eq asPhase(alchemState(V, AP, Step, Stones)) = AP .
+  eq asStep(alchemState(V, AP, Step, Stones)) = Step .
+  eq asStones(alchemState(V, AP, Step, Stones)) = Stones .
+
+  *** ============================================================
+  *** TRANSMUTATION RULES
+  *** ============================================================
+
+  *** NIGREDO: Dissolution — break existing structures
+  rl [nigredo-begin] :
+      alchemState(V, nigredo, Step, Stones)
+    =>
+      alchemState(V, nigredo, Step + 1, Stones) .
+
+  *** Transition: nigredo -> albedo (when vessel has only atoms)
+  crl [nigredo-to-albedo] :
+      alchemState(vessel(atom(E1) & MS, En, Cat), nigredo, Step, Stones)
+    =>
+      alchemState(vessel(atom(E1) & MS, En, Cat), albedo, 0, Stones)
+    if Step > 3 .
+
+  *** ALBEDO: Purification — form the first pure compounds
+  *** Discover OpenCog Stone: when carbon bonds with itself (self-reference)
+  crl [discover-opencog] :
+      alchemState(vessel(atom(E1) & atom(E2) & MS, En, Cat),
+                  albedo, Step, Stones)
+    =>
+      alchemState(vessel(
+        molecule("Oc:self-define",
+          bond(E1, E2, covalent, 1.0)) & MS,
+        En - 1.0, Cat),
+        albedo, Step + 1,
+        atom(opencogStone) & Stones)
+    if typeName(E1) == "InheritanceLink"
+    /\ typeName(E2) == "InheritanceLink"
+    /\ En > 0.0 .
+
+  *** Discover Wisdom Stone: when a noble gas observes a halogen
+  *** (knowing what you lack = seeing the reactive from the inert)
+  crl [discover-wisdom] :
+      alchemState(vessel(atom(E1) & atom(E2) & MS, En, Cat),
+                  albedo, Step, Stones)
+    =>
+      alchemState(vessel(
+        molecule("Wi:know-unknowing",
+          bond(E1, E2, hydrogen, 0.9)) & MS,
+        En - 1.0, Cat),
+        citrinitas, 0,
+        atom(wisdomStone) & Stones)
+    if isNoble(E1) /\ isHalogen(E2) /\ En > 0.0 .
+
+  *** CITRINITAS: Awakening — higher-order compounds form
+  *** Discover Philosophia: gold bonds with any base element (transmutation)
+  crl [discover-philosophia] :
+      alchemState(vessel(atom(E1) & atom(E2) & MS, En, Cat),
+                  citrinitas, Step, Stones)
+    =>
+      alchemState(vessel(
+        molecule("Ph:base-to-gold",
+          bond(E1, E2, covalent, 0.98)) & MS,
+        En - 1.0, Cat),
+        citrinitas, Step + 1,
+        atom(philosophiaStone) & Stones)
+    if typeName(E1) == "IsClosedLink"
+    /\ (not isNoble(E2))
+    /\ En > 0.0 .
+
+  *** Discover Monad: iron (Lambda) bonds with a type-system element
+  *** (the archetype that generates all instances)
+  crl [discover-monad] :
+      alchemState(vessel(atom(E1) & atom(E2) & MS, En, Cat),
+                  citrinitas, Step, Stones)
+    =>
+      alchemState(vessel(
+        molecule("Hm:archetype-gen",
+          bond(E1, E2, metallic, 0.97)) & MS,
+        En - 1.0, Cat),
+        rubedo, 0,
+        atom(monadStone) & Stones)
+    if typeName(E1) == "LambdaLink"
+    /\ category(E2) == typeCat
+    /\ En > 0.0 .
+
+  *** RUBEDO: Completion — the final stone crystallizes
+  *** Discover Yggdrasil: cobalt (Scope) bonds with hydrogen (Atom)
+  *** (universal scope over the most fundamental type)
+  crl [discover-yggdrasil] :
+      alchemState(vessel(atom(E1) & atom(E2) & MS, En, Cat),
+                  rubedo, Step, Stones)
+    =>
+      alchemState(vessel(
+        molecule("Yg:axis-mundi",
+          bond(E1, E2, metallic, 1.0)) & MS,
+        En - 1.0, Cat),
+        gnosis, 0,
+        atom(yggdrasilStone) & Stones)
+    if typeName(E1) == "ScopeLink"
+    /\ typeName(E2) == "Atom"
+    /\ En > 0.0 .
+
+  *** ============================================================
+  *** GNOSIS: The fixed point — all five stones present
+  *** ============================================================
+
+  *** Helper: check if a stone is in the MoleculeSet by type name
+  op stoneIn : MoleculeSet String -> Bool .
+  eq stoneIn(atom(E1) & MS, F) =
+    if typeName(E1) == F then true else stoneIn(MS, F) fi .
+  eq stoneIn(MS, F) = false [owise] .
+
+  op hasAllStones : AlchemState -> Bool .
+  eq hasAllStones(alchemState(V, gnosis, Step, Stones)) =
+    stoneIn(Stones, "OpenCogAtom") and
+    stoneIn(Stones, "WisdomAtom") and
+    stoneIn(Stones, "PhilosophiaAtom") and
+    stoneIn(Stones, "MonadAtom") and
+    stoneIn(Stones, "YggdrasilAtom") .
+  eq hasAllStones(AS:AlchemState) = false [owise] .
+
+  *** The Philosopher's Stone: the compound of all five stones
+  op philosophersStone : -> CogMolecule .
+  eq philosophersStone = crystal("GNOSIS:Oc+Wi+Ph+Hm+Yg",
+    bond(opencogStone, wisdomStone, covalent, 1.0),
+    bond(wisdomStone, philosophiaStone, covalent, 1.0),
+    bond(philosophiaStone, monadStone, covalent, 1.0),
+    bond(monadStone, yggdrasilStone, covalent, 1.0)) .
+
+  *** Final transmutation: when all stones are present, form the Philosopher's Stone
+  crl [form-philosophers-stone] :
+      alchemState(vessel(MS, En, Cat), gnosis, Step, Stones)
+    =>
+      alchemState(vessel(philosophersStone & MS, En + 100.0, Cat),
+        gnosis, Step + 1, Stones)
+    if hasAllStones(alchemState(vessel(MS, En, Cat), gnosis, Step, Stones)) .
+
+endm
+
+*** =================================================================
+*** MODULE 6: THE BOOTSTRAP LOOP (Reflective Self-Discovery)
+*** =================================================================
+***
+*** This module connects the alchemical process to the reflective
+*** engine: when a stone is discovered, it is INSTALLED as a new
+*** atom type in the running system via meta-level descent.
+***
+*** The bootstrap sequence:
+***   1. Start with prima materia (basic elements in vessel)
+***   2. Run alchemical reactions (rewrite rules)
+***   3. When a stone emerges, REFLECT: reify it as a new type
+***   4. Install the new type into the cognitive system
+***   5. The new type enables discovery of the NEXT stone
+***   6. Repeat until GNOSIS (fixed point)
+***
+*** This is the "science for precision" — each step is a formal
+*** rewrite rule with well-defined preconditions. The "myth to catch
+*** the runaways" — the alchemical narrative provides intuition
+*** for WHY these particular configurations are significant.
+
+mod OC-BOOTSTRAP is
+  protecting OC-FIVE-STONES .
+  protecting CONVERSION .
+
+  *** A discovered type (ready for installation)
+  sort DiscoveredType .
+  op discType : String String Nat -> DiscoveredType [ctor] .
+  ***           name   parent  valence
+
+  *** The bootstrap state
+  sort BootState .
+  sort TypeRegistry .
+  subsort DiscoveredType < TypeRegistry .
+
+  op emptyReg : -> TypeRegistry [ctor] .
+  op _;;_ : TypeRegistry TypeRegistry -> TypeRegistry [ctor assoc comm id: emptyReg] .
+
+  op bootState : AlchemState TypeRegistry Nat -> BootState [ctor] .
+  ***            alchemy     installed-types  bootstrap-cycle
+
+  op bsAlchem : BootState -> AlchemState .
+  op bsRegistry : BootState -> TypeRegistry .
+  op bsCycle : BootState -> Nat .
+
+  var AS : AlchemState .
+  var TR : TypeRegistry .
+  var BC : Nat .
+  var V : Vessel .
+  var MS : MoleculeSet .
+  var En : Float .
+  var Cat : CogElement .
+  var Step : Nat .
+  var Stones : MoleculeSet .
+  var AP : AlchemPhase .
+  vars S S2 : String .
+  var DV : Nat .
+
+  eq bsAlchem(bootState(AS, TR, BC)) = AS .
+  eq bsRegistry(bootState(AS, TR, BC)) = TR .
+  eq bsCycle(bootState(AS, TR, BC)) = BC .
+
+  *** ============================================================
+  *** TYPE INSTALLATION RULES
+  *** ============================================================
+
+  *** Helper: check if a specific stone is present in the MoleculeSet
+  var E1 : CogElement .
+  op hasStone : MoleculeSet String -> Bool .
+  eq hasStone(atom(E1) & MS, S) =
+    if typeName(E1) == S then true else hasStone(MS, S) fi .
+  eq hasStone(MS, S) = false [owise] .
+
+  *** When OpenCog stone is discovered, install it as a type
+  crl [install-opencog-type] :
+      bootState(alchemState(V, AP, Step, Stones), TR, BC)
+    =>
+      bootState(alchemState(V, AP, Step, Stones),
+        discType("OpenCogAtom", "Atom", 0) ;; TR, BC + 1)
+    if hasStone(Stones, "OpenCogAtom")
+    /\ not hasType(TR, "OpenCogAtom") .
+
+  *** When Wisdom stone is discovered, install it
+  crl [install-wisdom-type] :
+      bootState(alchemState(V, AP, Step, Stones), TR, BC)
+    =>
+      bootState(alchemState(V, AP, Step, Stones),
+        discType("WisdomAtom", "Value", 0) ;; TR, BC + 1)
+    if hasStone(Stones, "WisdomAtom")
+    /\ not hasType(TR, "WisdomAtom") .
+
+  *** When Philosophia stone is discovered, install it
+  crl [install-philosophia-type] :
+      bootState(alchemState(V, AP, Step, Stones), TR, BC)
+    =>
+      bootState(alchemState(V, AP, Step, Stones),
+        discType("PhilosophiaAtom", "BindLink", 0) ;; TR, BC + 1)
+    if hasStone(Stones, "PhilosophiaAtom")
+    /\ not hasType(TR, "PhilosophiaAtom") .
+
+  *** When Monad stone is discovered, install it
+  crl [install-monad-type] :
+      bootState(alchemState(V, AP, Step, Stones), TR, BC)
+    =>
+      bootState(alchemState(V, AP, Step, Stones),
+        discType("MonadAtom", "LambdaLink", 0) ;; TR, BC + 1)
+    if hasStone(Stones, "MonadAtom")
+    /\ not hasType(TR, "MonadAtom") .
+
+  *** When Yggdrasil stone is discovered, install it
+  crl [install-yggdrasil-type] :
+      bootState(alchemState(V, AP, Step, Stones), TR, BC)
+    =>
+      bootState(alchemState(V, AP, Step, Stones),
+        discType("YggdrasilAtom", "ScopeLink", 0) ;; TR, BC + 1)
+    if hasStone(Stones, "YggdrasilAtom")
+    /\ not hasType(TR, "YggdrasilAtom") .
+
+  *** Helper: check if a type is already registered
+  op hasType : TypeRegistry String -> Bool .
+  eq hasType(discType(S, S2, DV) ;; TR, S) = true .
+  eq hasType(TR, S) = false [owise] .
+
+  *** Count installed types
+  op countTypes : TypeRegistry -> Nat .
+  eq countTypes(emptyReg) = 0 .
+  eq countTypes(discType(S, S2, DV) ;; TR) = 1 + countTypes(TR) .
+
+  *** ============================================================
+  *** GNOSIS CHECK: Have all five types been installed?
+  *** ============================================================
+
+  op isGnosis : BootState -> Bool .
+  eq isGnosis(bootState(AS, TR, BC)) = countTypes(TR) >= 5 .
+
+  *** ============================================================
+  *** THE PRIMA MATERIA (starting configuration)
+  *** ============================================================
+
+  *** The initial vessel: the raw elements needed for all five stones
+  op primaMateriaVessel : -> Vessel .
+  eq primaMateriaVessel = vessel(
+    atom(carbon) & atom(carbon) &     *** for OpenCog (self-reference)
+    atom(neon) & atom(fluorine) &     *** for Wisdom (noble + halogen)
+    atom(gold) & atom(lithium) &      *** for Philosophia (gold + base)
+    atom(iron) & atom(tungsten) &     *** for Monad (lambda + type)
+    atom(cobalt) & atom(hydrogen),    *** for Yggdrasil (scope + atom)
+    20.0,                             *** starting energy
+    nickel) .                         *** catalyst: BindLink (pattern matcher)
+
+  *** The initial alchemical state
+  op primaMateria : -> AlchemState .
+  eq primaMateria = alchemState(primaMateriaVessel, nigredo, 0, emptyMol) .
+
+  *** The initial bootstrap state
+  op genesisState : -> BootState .
+  eq genesisState = bootState(primaMateria, emptyReg, 0) .
+
+endm
+
+*** =================================================================
+*** MODULE 7: THE OPUS MAGNUM (Strategy-controlled bootstrap)
+*** =================================================================
+
+smod OC-OPUS-MAGNUM is
+  protecting OC-BOOTSTRAP .
+
+  *** Alchemical phase strategies
+  strat doNigredo : @ BootState .
+  sd doNigredo := nigredo-begin .
+
+  strat doAlbedo : @ BootState .
+  sd doAlbedo := (nigredo-to-albedo or-else discover-opencog) .
+
+  strat doCitrinitas : @ BootState .
+  sd doCitrinitas := (discover-wisdom or-else discover-philosophia or-else discover-monad) .
+
+  strat doRubedo : @ BootState .
+  sd doRubedo := discover-yggdrasil .
+
+  *** Type installation
+  strat installTypes : @ BootState .
+  sd installTypes := (install-opencog-type | install-wisdom-type | 
+                      install-philosophia-type | install-monad-type |
+                      install-yggdrasil-type) .
+
+  *** The Great Work: the full alchemical sequence
+  strat opusMagnum : @ BootState .
+  sd opusMagnum := 
+    (doNigredo +) ;            *** dissolve
+    doAlbedo ;                 *** purify and find OpenCog
+    try(installTypes) ;        *** install OpenCog type
+    doCitrinitas ;             *** awaken: Wisdom, Philosophia, Monad
+    try(installTypes) ;        *** install discovered types
+    try(doCitrinitas) ;        *** continue citrinitas
+    try(installTypes) ;
+    try(doCitrinitas) ;
+    try(installTypes) ;
+    doRubedo ;                 *** complete: Yggdrasil
+    try(installTypes) ;        *** install final type
+    try(form-philosophers-stone) .  *** crystallize GNOSIS
+
+  *** Bounded opus: try the great work with limited steps
+  strat boundedOpus : Nat @ BootState .
+  sd boundedOpus(0) := idle .
+  sd boundedOpus(s(N:Nat)) := 
+    (try(doNigredo) ; try(doAlbedo) ; try(doCitrinitas) ; 
+     try(doRubedo) ; try(installTypes)) ;
+    boundedOpus(N:Nat) .
+
+endsm

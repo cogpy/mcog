@@ -1,0 +1,251 @@
+***( ================================================================
+***  OpenCog in Pure Maude — Cognitive Chemistry Tests
+***  
+***  Tests for:
+***  1. Element properties (periodic table)
+***  2. Bond classification
+***  3. Molecular formation
+***  4. Reactions
+***  5. Alchemical transmutation (Five Stones)
+***  6. Bootstrap loop (type installation)
+*** ================================================================ )
+
+load cognitive-chemistry.maude
+
+*** =================================================================
+*** TEST 1: Element Properties
+*** =================================================================
+
+*** Verify element construction
+red in OC-ELEMENTS : atomicNum(carbon) .
+*** expect: 6
+
+red in OC-ELEMENTS : symbol(carbon) .
+*** expect: "C"
+
+red in OC-ELEMENTS : typeName(carbon) .
+*** expect: "InheritanceLink"
+
+red in OC-ELEMENTS : period(carbon) .
+*** expect: 2
+
+red in OC-ELEMENTS : group(carbon) .
+*** expect: 14
+
+red in OC-ELEMENTS : valence(carbon) .
+*** expect: 4
+
+red in OC-ELEMENTS : electronegativity(carbon) .
+*** expect: 2.5
+
+*** Verify iron (LambdaLink)
+red in OC-ELEMENTS : typeName(iron) .
+*** expect: "LambdaLink"
+
+red in OC-ELEMENTS : valence(iron) .
+*** expect: 4
+
+*** Verify noble gas (closed)
+red in OC-ELEMENTS : isNoble(neon) .
+*** expect: true
+
+red in OC-ELEMENTS : isNoble(carbon) .
+*** expect: false
+
+red in OC-ELEMENTS : isNoble(helium) .
+*** expect: true
+
+*** Verify halogen
+red in OC-ELEMENTS : isHalogen(fluorine) .
+*** expect: true
+
+red in OC-ELEMENTS : isHalogen(carbon) .
+*** expect: false
+
+*** Verify alkali
+red in OC-ELEMENTS : isAlkali(sodium) .
+*** expect: true
+
+red in OC-ELEMENTS : isAlkali(iron) .
+*** expect: false
+
+*** Verify transition metal
+red in OC-ELEMENTS : isTransition(iron) .
+*** expect: true
+
+red in OC-ELEMENTS : isTransition(carbon) .
+*** expect: false
+
+*** =================================================================
+*** TEST 2: Bond Classification
+*** =================================================================
+
+*** Can bond?
+red in OC-ELEMENTS : canBond(carbon, beryllium) .
+*** expect: true
+
+red in OC-ELEMENTS : canBond(neon, helium) .
+*** expect: false (both noble)
+
+*** Bond polarity
+red in OC-ELEMENTS : bondPolarity(sodium, fluorine) .
+*** expect: 3.1 (very polar = ionic)
+
+red in OC-ELEMENTS : bondPolarity(carbon, carbon) .
+*** expect: 0.0 (nonpolar = covalent)
+
+*** Bond type classification
+red in OC-ELEMENTS : classifyBond(sodium, fluorine) .
+*** expect: ionic (polarity > 1.7)
+
+red in OC-ELEMENTS : classifyBond(carbon, carbon) .
+*** expect: covalent
+
+red in OC-ELEMENTS : classifyBond(iron, cobalt) .
+*** expect: metallic (both transition)
+
+*** =================================================================
+*** TEST 3: Molecular Properties
+*** =================================================================
+
+*** Cognitive water
+red in OC-MOLECULES : molFormula(cogWater) .
+*** expect: "H2O:Eval(Pred,List(C,C))"
+
+red in OC-MOLECULES : molStability(cogWater) .
+*** expect: 0.875
+
+red in OC-MOLECULES : isClosed(cogWater) .
+*** expect: true (compound)
+
+*** Cognitive diamond
+red in OC-MOLECULES : molStability(cogDiamond) .
+*** expect: 0.99
+
+red in OC-MOLECULES : isClosed(cogDiamond) .
+*** expect: true (crystal)
+
+*** Cognitive salt
+red in OC-MOLECULES : isClosed(cogSalt) .
+*** expect: false (single bond molecule)
+
+*** =================================================================
+*** TEST 4: Reactions
+*** =================================================================
+
+*** Test synthesis: two atoms form a molecule
+search [1] in OC-REACTIONS :
+  vessel(atom(carbon) & atom(beryllium) & emptyMol, 10.0, nickel)
+=>+ vessel(M:CogMolecule & MS:MoleculeSet, En:Float, Cat:CogElement)
+such that molFormula(M:CogMolecule) =/= "" .
+*** Should find a molecule formed from carbon + beryllium
+
+*** Test catalytic synthesis with transition metal catalyst
+search [1] in OC-REACTIONS :
+  vessel(atom(sodium) & atom(chlorine) & emptyMol, 5.0, iron)
+=>+ vessel(M:CogMolecule & MS:MoleculeSet, En:Float, Cat:CogElement) .
+*** Should form NaCl with iron catalyst
+
+*** =================================================================
+*** TEST 5: Alchemical Transmutation
+*** =================================================================
+
+*** Test the Five Stones elements
+red in OC-FIVE-STONES : atomicNum(opencogStone) .
+*** expect: 119
+
+red in OC-FIVE-STONES : symbol(wisdomStone) .
+*** expect: "Wi"
+
+red in OC-FIVE-STONES : typeName(philosophiaStone) .
+*** expect: "PhilosophiaAtom"
+
+red in OC-FIVE-STONES : typeName(monadStone) .
+*** expect: "MonadAtom"
+
+red in OC-FIVE-STONES : symbol(yggdrasilStone) .
+*** expect: "Yg"
+
+*** Test Philosopher's Stone
+red in OC-FIVE-STONES : molFormula(philosophersStone) .
+*** expect: "GNOSIS:Oc+Wi+Ph+Hm+Yg"
+
+red in OC-FIVE-STONES : isClosed(philosophersStone) .
+*** expect: true
+
+red in OC-FIVE-STONES : molStability(philosophersStone) .
+*** expect: 1.0
+
+*** Test alchemical discovery: OpenCog stone from carbon + carbon
+search [1] in OC-FIVE-STONES :
+  alchemState(
+    vessel(atom(carbon) & atom(carbon) & emptyMol, 10.0, nickel),
+    albedo, 0, emptyMol)
+=>+ alchemState(V:Vessel, AP:AlchemPhase, Step:Nat, Stones:MoleculeSet)
+such that Stones:MoleculeSet =/= emptyMol .
+*** Should discover OpenCog stone
+
+*** Test Wisdom discovery: noble + halogen
+search [1] in OC-FIVE-STONES :
+  alchemState(
+    vessel(atom(neon) & atom(fluorine) & emptyMol, 10.0, nickel),
+    albedo, 0, atom(opencogStone))
+=>+ alchemState(V:Vessel, citrinitas, Step:Nat, Stones:MoleculeSet) .
+*** Should discover Wisdom and transition to citrinitas
+
+*** Test Philosophia discovery: gold + base element
+search [1] in OC-FIVE-STONES :
+  alchemState(
+    vessel(atom(gold) & atom(lithium) & emptyMol, 10.0, nickel),
+    citrinitas, 0, atom(opencogStone) & atom(wisdomStone))
+=>+ alchemState(V:Vessel, AP:AlchemPhase, Step:Nat, Stones:MoleculeSet) .
+*** Should discover Philosophia
+
+*** =================================================================
+*** TEST 6: Bootstrap Loop
+*** =================================================================
+
+*** Test genesis state
+red in OC-BOOTSTRAP : bsCycle(genesisState) .
+*** expect: 0
+
+red in OC-BOOTSTRAP : countTypes(bsRegistry(genesisState)) .
+*** expect: 0
+
+red in OC-BOOTSTRAP : isGnosis(genesisState) .
+*** expect: false
+
+*** Test hasType
+red in OC-BOOTSTRAP : hasType(
+  discType("OpenCogAtom", "Atom", 0) ;; emptyReg, "OpenCogAtom") .
+*** expect: true
+
+red in OC-BOOTSTRAP : hasType(emptyReg, "OpenCogAtom") .
+*** expect: false
+
+*** Test type installation after stone discovery
+*** The install rule matches atom(opencogStone) & Stones where Stones can be emptyMol
+search [1] in OC-BOOTSTRAP :
+  bootState(
+    alchemState(
+      vessel(emptyMol, 5.0, nickel),
+      albedo, 0,
+      atom(opencogStone) & emptyMol),
+    emptyReg, 0)
+=>+ bootState(AS:AlchemState, TR:TypeRegistry, BC:Nat)
+such that hasType(TR:TypeRegistry, "OpenCogAtom") .
+*** Should install OpenCogAtom type
+
+*** Test full bootstrap: discover + install multiple stones
+search [1] in OC-BOOTSTRAP :
+  bootState(
+    alchemState(
+      vessel(atom(carbon) & atom(carbon) & atom(neon) & atom(fluorine) & emptyMol,
+             15.0, nickel),
+      albedo, 0, emptyMol),
+    emptyReg, 0)
+=>+ bootState(AS:AlchemState, TR:TypeRegistry, BC:Nat)
+such that countTypes(TR:TypeRegistry) >= 2 .
+*** Should discover OpenCog + Wisdom and install both types
+
+quit
