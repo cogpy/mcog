@@ -53,23 +53,27 @@ red in OC-TRUTH-VALUE :
 *** PROPERTY 3: Idempotence of addAtom
 *** =================================================================
 *** Adding the same atom twice should give the same TV as adding once
-*** (when using setTV for the second add — the raw addAtom duplicates).
+*** (when using setTV for the second add -- the raw addAtom duplicates).
 *** Here we verify that mergeTV on an identical TV is idempotent via
-*** the revision rule: revision of X with X ≈ X.
+*** the revision rule: revision of X with X ~= X.
 
 red in OC-ATOM-SPACE :
   tvStrength(
-    mergeTV(
-      addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
-      concept("cat"),
-      stv(0.8, 0.9))) .
+    getTV(
+      mergeTV(
+        addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+        concept("cat"),
+        stv(0.8, 0.9)),
+      concept("cat"))) .
 
 red in OC-ATOM-SPACE :
   tvConfidence(
-    mergeTV(
-      addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
-      concept("cat"),
-      stv(0.8, 0.9))) .
+    getTV(
+      mergeTV(
+        addAtom(emptyAS, concept("cat"), stv(0.8, 0.9)),
+        concept("cat"),
+        stv(0.8, 0.9)),
+      concept("cat"))) .
 
 *** Confidence should be >= 0.9 after merging identical evidence
 red in OC-ATOM-SPACE :
