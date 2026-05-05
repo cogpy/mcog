@@ -37,6 +37,12 @@ jobs:
       - name: Run algebraic property tests (Phase 6.3)
         run: python3 .github/scripts/validate-tests.py test-properties.maude
 
+      - name: Run Phase 7 AGI-native capability tests
+        run: python3 .github/scripts/validate-tests.py test-phase3.maude
+
+      - name: Run Cognitive Chemistry tests
+        run: python3 .github/scripts/validate-tests.py test-chemistry.maude
+
       - name: Upload raw Maude output on failure
         if: failure()
         uses: actions/upload-artifact@v4
