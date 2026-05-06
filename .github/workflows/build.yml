@@ -28,6 +28,13 @@ jobs:
           - spacetime.maude
           - ghost-psi.maude
           - meta-opencog.maude
+          - reflective-engine.maude
+          - model-check-cog.maude
+          - narrowing-abduce.maude
+          - parameterized-cog.maude
+          - cognitive-cycle.maude
+          - autogenesis.maude
+          - cognitive-chemistry.maude
 
     steps:
       - name: Checkout repository

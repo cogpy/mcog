@@ -42,6 +42,17 @@ The implementation consists of the following modules:
 * `ghost-psi.maude` (`OC-OPENPSI-ENGINE`): OpenPsi motivational system (demands, modulators, action-selection) and GHOST dialogue rules (responder, gambit, rejoinder).
 * `meta-opencog.maude` (`OC-META`): Meta-level reflection for cognitive synergy (type introspection, strategy selection, self-modification, inference monitoring).
 
+### 7. AGI-Native Maude Capabilities (Phase 7)
+* `reflective-engine.maude` (`OC-REFLECTIVE-INFERENCE`): Gödel Machine layer — rules-as-data with effectiveness tracking, adaptive pruning, and Maude `META-LEVEL` introspection.
+* `model-check-cog.maude` (`OC-COG-CHECK`): LTL model-checking of cognitive safety and liveness properties over the AtomSpace as a Kripke structure.
+* `narrowing-abduce.maude` (`OC-NARROW-KB`): Complete symbolic abduction via Maude narrowing — given a goal, find all explanatory initial states.
+* `parameterized-cog.maude` (`BIO-PLN`, `SOCIAL-PLN`, `PHYS-PLN`): Algebraic transfer learning via parameterized PLN modules instantiated over Biology, Social, and Physics domains.
+* `cognitive-cycle.maude` (`OC-COGNITIVE-CYCLE`): Strategy-controlled cognitive heartbeat — composable `smod` strategies for perceive, attend, reason, act, learn cycles.
+* `autogenesis.maude` (`OC-AUTOGENESIS`): Emergent goal generation — the system introspects its own drives/metrics and generates new goals via seven autogenesis rules, with safety verification.
+
+### 8. Cognitive Chemistry (Phase 8)
+* `cognitive-chemistry.maude` (`OC-ELEMENTS`, `OC-MOLECULES`, `OC-REACTIONS`, `OC-FIVE-STONES`, `OC-BOOTSTRAP`): The Periodic Table of Cognition — atom types mapped to chemical elements with valence/bonding rules; molecular formation via reactions; alchemical transmutation of five emergent types (OpenCog, Wisdom, Philosophia, Monad, Yggdrasil) culminating in GNOSIS; bootstrap loop installing discovered types at runtime.
+
 ## Usage
 
 You need Maude 3.0+ installed to run the system.
@@ -102,7 +113,7 @@ crl [psi-fire-rule] :
 
 ## Testing
 
-Run the full test suite (4 test files, 300+ assertions and searches):
+Run the full test suite (6 test files, 400+ assertions and searches):
 
 ```bash
 # Phase 1 — core integration tests
@@ -116,6 +127,12 @@ python3 .github/scripts/validate-tests.py test-coverage.maude
 
 # Algebraic property tests (Phase 6.3)
 python3 .github/scripts/validate-tests.py test-properties.maude
+
+# Phase 7 AGI-native capability tests (reflection, model-checking, narrowing, etc.)
+python3 .github/scripts/validate-tests.py test-phase3.maude
+
+# Cognitive Chemistry tests (elements, bonds, molecules, alchemy, bootstrap)
+python3 .github/scripts/validate-tests.py test-chemistry.maude
 ```
 
 Benchmarks can be run directly with Maude (`set show timing on` reports rewrite-step counts):
@@ -151,6 +168,17 @@ maude bench-pattern-miner.maude  # pattern mining at various dataset sizes
 
 ### Phase 5 — I/O and External Integration
 * **io-bridge.maude** *(new)*: `OC-SCHEME-SERIAL` serialises any `OcAtom` to Scheme S-expression or JSON strings; `OC-EXTERNAL-SYNC` provides a stub `importAtoms` hook for future REST/Python bridge integration; `OC-ROBOTICS` models sensor and actuator atoms (`sensorSonar`, `motorMove`, `speechSay`) and a `tick-decay` rule that ages short-lived atoms by −5 STI per cycle.
+
+### Phase 7 — AGI-Native Maude Capabilities
+* **reflective-engine.maude** *(new)*: `OC-REFLECT-TERMS`, `OC-META-OPS`, `OC-REFLECTIVE-INFERENCE`, `OC-DERIVABILITY-CHECK` — the Gödel Machine layer; rules reified as data with effectiveness tracking; `mostEffective`/`leastEffective` selection; `adapt-rule` pruning; Maude `META-LEVEL` introspection via `cogModuleName`.
+* **model-check-cog.maude** *(new)*: `OC-COG-STATE`, `OC-COG-PREDS`, `OC-COG-TRANSITIONS`, `OC-COG-CHECK` — cognitive Kripke structure for Maude's built-in LTL model checker; propositions `noContradiction`, `budgetRespected`, `hasKnowledge`; state-space transitions for PLN inference and ECAN spreading.
+* **narrowing-abduce.maude** *(new)*: `OC-NARROW-KB` — constructor-based knowledge base enabling Maude `vu-narrow`/`search` for complete symbolic abduction; deduction, modus-ponens, and similarity-to-inheritance rules over a narrowing-ready term algebra.
+* **parameterized-cog.maude** *(new)*: `COGNITIVE-DOMAIN` functional theory; `PLN-CORE{D}` parameterized PLN module; `BIO-PLN`, `SOCIAL-PLN`, `PHYS-PLN` instantiations via views — algebraic transfer learning across Biology, Social, and Physics domains.
+* **cognitive-cycle.maude** *(new)*: `OC-CYCLE-STATE`, `OC-COGNITIVE-CYCLE` — strategy-controlled cognitive cycle using Maude's `smod`; composable strategies `perceive`, `attend`, `reason`, `act`, `learn`, `tick`, `basicCycle`, `deliberative`, `reactive`, `drainPercepts`.
+* **autogenesis.maude** *(new)*: `OC-INTROSPECTION`, `OC-GOAL-GENERATOR`, `OC-AUTOGENESIS` — emergent goal generation; seven autogenesis rules (exploration, inference-boost, attention-rebalance, drive-satisfaction, meta-learning, social, creativity); six-phase autogenesis loop (introspect → analyze → generate → verify → install → execute) with bounded-iteration safety check.
+
+### Phase 8 — Cognitive Chemistry
+* **cognitive-chemistry.maude** *(new)*: `OC-ELEMENTS`, `OC-MOLECULES`, `OC-REACTIONS`, `OC-FIVE-STONES`, `OC-BOOTSTRAP` — the Periodic Table of Cognition; 20 cognitive elements (helium through gold) with atomic number, symbol, period, group, valence, and electronegativity; covalent/ionic/metallic bond classification; molecular formation via synthesis reactions; five alchemical stones (OpenCog, Wisdom, Philosophia, Monad, Yggdrasil); bootstrap loop that installs discovered emergent types into a `TypeRegistry`.
 
 ### Phase 6 — Verification and Formal Properties
 * **test-properties.maude** *(new)*: Algebraic laws — `tvAnd`/`tvOr` commutativity and associativity, `mergeTV` idempotence, ECAN rent monotonicity, forgetting termination, `normalizeSTI` budget invariant, `tvRevision` commutativity, PLN duplicate-derivation guard.
