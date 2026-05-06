@@ -54,7 +54,9 @@ def parse_test_commands(test_file: str) -> list:
                 if expected.endswith(" or similar"):
                     expected = expected[:-len(" or similar")]
                 # Strip trailing human-readable annotation, e.g. " (lowest effectiveness)".
-                # Note: nested parentheses in annotations are not supported.
+                # The pattern matches the last occurrence of " (text)" where text contains
+                # no closing parenthesis; nested parentheses in annotations are not supported
+                # (only the outermost trailing annotation group is stripped).
                 expected = re.sub(r'\s+\([^)]*\)\s*$', '', expected).strip()
 
             commands.append(("red", expected))
@@ -121,7 +123,9 @@ def values_match(expected: str, actual: str) -> bool:
             return False
         if et[0] == 'str':
             # Normalise runs of whitespace so "a,b" matches "a, b" etc.
-            if re.sub(r'\s+', ' ', et[1]).strip() != re.sub(r'\s+', ' ', at[1]).strip():
+            e_norm = re.sub(r'\s+', ' ', et[1]).strip()
+            a_norm = re.sub(r'\s+', ' ', at[1]).strip()
+            if e_norm != a_norm:
                 return False
         else:
             try:
@@ -189,6 +193,9 @@ def parse_maude_output(output: str) -> tuple:
             continue
 
         # RC3: Continuation — raw line is indented, meaning Maude wrapped a long term.
+        # pending_result is only set when we are outside search/srewrite blocks
+        # (see the result-matching branch above), so indented lines here are
+        # genuine continuations of a reduce result term.
         if pending_result is not None and line.startswith((' ', '\t')):
             pending_result += " " + stripped
             continue
