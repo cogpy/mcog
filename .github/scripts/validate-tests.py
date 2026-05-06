@@ -53,7 +53,8 @@ def parse_test_commands(test_file: str) -> list:
                 expected = lines[k].strip()[len("*** expect:"):].strip()
                 if expected.endswith(" or similar"):
                     expected = expected[:-len(" or similar")]
-                # Strip trailing human-readable annotation, e.g. " (lowest effectiveness)"
+                # Strip trailing human-readable annotation, e.g. " (lowest effectiveness)".
+                # Note: nested parentheses in annotations are not supported.
                 expected = re.sub(r'\s+\([^)]*\)\s*$', '', expected).strip()
 
             commands.append(("red", expected))
@@ -119,8 +120,8 @@ def values_match(expected: str, actual: str) -> bool:
         if et[0] != at[0]:
             return False
         if et[0] == 'str':
-            # Normalise internal whitespace so "a,b" matches "a, b" etc.
-            if et[1].replace(' ', '') != at[1].replace(' ', ''):
+            # Normalise runs of whitespace so "a,b" matches "a, b" etc.
+            if re.sub(r'\s+', ' ', et[1]).strip() != re.sub(r'\s+', ' ', at[1]).strip():
                 return False
         else:
             try:
@@ -188,7 +189,7 @@ def parse_maude_output(output: str) -> tuple:
             continue
 
         # RC3: Continuation — raw line is indented, meaning Maude wrapped a long term.
-        if pending_result is not None and line and line[0] in (' ', '\t'):
+        if pending_result is not None and line.startswith((' ', '\t')):
             pending_result += " " + stripped
             continue
 
