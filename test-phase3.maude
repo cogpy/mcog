@@ -31,14 +31,14 @@ red in OC-REFLECT-TERMS :
     srule("r1", "body1", 0.8, 8, 10) ;
     srule("r2", "body2", 0.3, 1, 10) ;
     srule("r3", "body3", 0.9, 9, 10)) .
-*** expect: srule("r2", ...) (lowest effectiveness)
+*** expect: srule("r2", "body2", 0.3, 1, 10)
 
 red in OC-REFLECT-TERMS :
   mostEffective(
     srule("r1", "body1", 0.8, 8, 10) ;
     srule("r2", "body2", 0.3, 1, 10) ;
     srule("r3", "body3", 0.9, 9, 10)) .
-*** expect: srule("r3", ...) (highest effectiveness)
+*** expect: srule("r3", "body3", 0.9, 9, 10)
 
 *** Test meta-level module introspection
 red in OC-META-OPS : cogModuleName .
@@ -174,7 +174,7 @@ red in BIO-PLN :
 
 red in BIO-PLN :
   domainAwareSim(bioEntity("cat", "felidae"), bioEntity("oak", "plantae")) .
-*** expect: dSim(..., 0.3) (different taxon = low similarity)
+*** expect: dSim(bioEntity("cat", "felidae"), bioEntity("oak", "plantae"), 0.3)
 
 *** Test Social domain instantiation
 red in SOCIAL-PLN :
@@ -193,7 +193,7 @@ red in PHYS-PLN :
 
 red in PHYS-PLN :
   domainAwareSim(particle("electron", 0.511), particle("muon", 105.7)) .
-*** expect: dSim(..., low) (very different masses)
+*** expect: dSim(particle("electron", 0.511), particle("muon", 105.7), 0.004834437086092715)
 
 *** =================================================================
 *** TEST 5: Strategy-Controlled Cognitive Cycles
