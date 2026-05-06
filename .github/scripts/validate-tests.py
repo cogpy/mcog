@@ -53,6 +53,8 @@ def parse_test_commands(test_file: str) -> list:
                 expected = lines[k].strip()[len("*** expect:"):].strip()
                 if expected.endswith(" or similar"):
                     expected = expected[:-len(" or similar")]
+                # Strip trailing human-readable annotation, e.g. " (lowest effectiveness)"
+                expected = re.sub(r'\s+\([^)]*\)\s*$', '', expected).strip()
 
             commands.append(("red", expected))
             i = j + 1
@@ -117,7 +119,8 @@ def values_match(expected: str, actual: str) -> bool:
         if et[0] != at[0]:
             return False
         if et[0] == 'str':
-            if et[1] != at[1]:
+            # Normalise internal whitespace so "a,b" matches "a, b" etc.
+            if et[1].replace(' ', '') != at[1].replace(' ', ''):
                 return False
         else:
             try:
@@ -144,43 +147,84 @@ def parse_maude_output(output: str) -> tuple:
     search_found = []
     in_search = False
     found_solution = False
+    in_srewrite = False   # RC2: track strategy-rewrite context to skip its results
+    pending_result = None  # RC3: accumulate multi-line result terms
 
     for line in output.splitlines():
         stripped = line.strip()
 
-        # Reduction result: "result TYPE: VALUE"
-        m = re.match(r"^result \S+:\s*(.+)$", stripped)
-        if m:
-            results.append(m.group(1).strip())
+        # RC2: Detect srewrite command — all result lines inside are ignored.
+        if re.match(r"^srewrite\b", stripped):
+            if pending_result is not None:
+                results.append(pending_result)
+                pending_result = None
+            in_srewrite = True
+            in_search = False
+            found_solution = False
             continue
 
         # Start of a search command echo from Maude.
         if re.match(r"^search\s*\[", stripped):
+            if pending_result is not None:
+                results.append(pending_result)
+                pending_result = None
             if in_search:
                 search_found.append(found_solution)
                 found_solution = False
             in_search = True
+            in_srewrite = False
             found_solution = False
             continue
+
+        # Reduction result: "result TYPE: VALUE"
+        m = re.match(r"^result \S+:\s*(.*)", stripped)
+        if m:
+            if pending_result is not None:
+                results.append(pending_result)
+                pending_result = None
+            # RC2: skip results that belong to srewrite or search blocks.
+            if not in_srewrite and not in_search:
+                pending_result = m.group(1).strip()
+            continue
+
+        # RC3: Continuation — raw line is indented, meaning Maude wrapped a long term.
+        if pending_result is not None and line and line[0] in (' ', '\t'):
+            pending_result += " " + stripped
+            continue
+
+        # Any other non-indented line flushes a pending result.
+        if pending_result is not None:
+            results.append(pending_result)
+            pending_result = None
 
         # Search solved.
         if in_search and re.match(r"^Solution\s+1\b", stripped):
             found_solution = True
             continue
 
-        # Search ended with no solution.
-        if in_search and stripped == "No solution.":
-            search_found.append(False)
-            in_search = False
-            found_solution = False
+        # Search/srewrite ended with no solution.
+        if stripped == "No solution.":
+            if in_search:
+                search_found.append(False)
+                in_search = False
+                found_solution = False
+            elif in_srewrite:
+                in_srewrite = False
             continue
 
-        # Search exhausted all solutions (at least one was found).
-        if in_search and stripped == "No more solutions.":
-            search_found.append(found_solution)
-            in_search = False
-            found_solution = False
+        # Search/srewrite exhausted all solutions.
+        if stripped == "No more solutions.":
+            if in_search:
+                search_found.append(found_solution)
+                in_search = False
+                found_solution = False
+            elif in_srewrite:
+                in_srewrite = False
             continue
+
+    # Flush any result still being accumulated at end of output.
+    if pending_result is not None:
+        results.append(pending_result)
 
     # Handle the last search block if output ended without a closing marker.
     if in_search:
