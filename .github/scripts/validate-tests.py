@@ -130,7 +130,7 @@ def values_match(expected: str, actual: str) -> bool:
                 s = re.sub(r'\s+', ' ', s)
                 s = re.sub(r'\s*([(),])\s*', r'\1', s)
                 return s.strip()
-            if _norm(e_norm := et[1]) != _norm(a_norm := at[1]):
+            if _norm(et[1]) != _norm(at[1]):
                 return False
         else:
             try:
