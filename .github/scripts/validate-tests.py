@@ -122,10 +122,15 @@ def values_match(expected: str, actual: str) -> bool:
         if et[0] != at[0]:
             return False
         if et[0] == 'str':
-            # Normalise runs of whitespace so "a,b" matches "a, b" etc.
-            e_norm = re.sub(r'\s+', ' ', et[1]).strip()
-            a_norm = re.sub(r'\s+', ' ', at[1]).strip()
-            if e_norm != a_norm:
+            # Normalise runs of whitespace and strip spaces around punctuation
+            # so that "a,b" matches "a, b" and "f( x" matches "f(x".
+            # Maude sometimes adds or omits spaces around commas and parens
+            # depending on how it pretty-prints long terms.
+            def _norm(s):
+                s = re.sub(r'\s+', ' ', s)
+                s = re.sub(r'\s*([(),])\s*', r'\1', s)
+                return s.strip()
+            if _norm(et[1]) != _norm(at[1]):
                 return False
         else:
             try:
@@ -163,6 +168,9 @@ def parse_maude_output(output: str) -> tuple:
             if pending_result is not None:
                 results.append(pending_result)
                 pending_result = None
+            # Close any open search context before entering srewrite.
+            if in_search:
+                search_found.append(found_solution)
             in_srewrite = True
             in_search = False
             found_solution = False
@@ -208,6 +216,17 @@ def parse_maude_output(output: str) -> tuple:
         # Search solved.
         if in_search and re.match(r"^Solution\s+1\b", stripped):
             found_solution = True
+            continue
+
+        # Maude search summary line: "states: N  rewrites: M [...]".
+        # This always appears at the end of a search block.  For bounded
+        # searches (e.g. "search [1,1]") Maude never prints "No more
+        # solutions." after finding the requested number of results, so this
+        # line is the only reliable end-of-search signal in that case.
+        if in_search and re.match(r"^states:\s+\d+\s+rewrites:\s+\d+", stripped):
+            search_found.append(found_solution)
+            in_search = False
+            found_solution = False
             continue
 
         # Search/srewrite ended with no solution.
